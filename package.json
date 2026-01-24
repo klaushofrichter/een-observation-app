@@ -13,7 +13,7 @@
   "dependencies": {
     "@een/live-video-web-sdk": "^1.10.2",
     "@vitejs/plugin-vue": "^6.0.3",
-    "een-api-toolkit": "^0.3.30",
+    "een-api-toolkit": "^0.3.35",
     "pinia": "^3.0.4",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",

@@ -6,7 +6,7 @@ import Callback from '../views/Callback.vue'
 import Logout from '../views/Logout.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',

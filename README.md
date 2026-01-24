@@ -15,19 +15,19 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 ## Screenshot
 
 ```
-+------------------------------------------------------------------+
-|  Top Bar: App Name | User Info                         | Logout  |
-+------------------------------------------------------------------+
-|          |                                                       |
-|  Camera  |  Video Section (HD feed + camera info)                |
-|  Sidebar |                                                       |
-|          |-------------------------------------------------------|
-| (Preview |  Events Section                                       |
++-------------------------------------------------------------------+
+|  Top Bar: App Name | User Info                          | Logout  |
++-------------------------------------------------------------------+
+|          |                                                        |
+|  Camera  |  Video Section (HD feed + camera info)                 |
+|  Sidebar |                                                        |
+|          |--------------------------------------------------------|
+| (Preview |  Events Section                                        |
 |  Videos) |  +---------------+----------------+------------------+ |
 |          |  | Event Types   | Historic Events| Live SSE Events  | |
 |  [Paging]|  | (toggles)     | (filtered)     | (filtered)       | |
 |          |  +---------------+----------------+------------------+ |
-+------------------------------------------------------------------+
++-------------------------------------------------------------------+
 ```
 
 ## Technology Stack
