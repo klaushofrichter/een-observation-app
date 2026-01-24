@@ -16,6 +16,11 @@ const redirectUri = import.meta.env.DEV
   ? 'http://127.0.0.1:3333'
   : (window.location.origin + import.meta.env.BASE_URL).replace(/\/$/, '')
 
+console.log('[EEN Init] DEV mode:', import.meta.env.DEV)
+console.log('[EEN Init] BASE_URL:', import.meta.env.BASE_URL)
+console.log('[EEN Init] origin:', window.location.origin)
+console.log('[EEN Init] redirectUri:', redirectUri)
+
 initEenToolkit({
   proxyUrl: import.meta.env.VITE_PROXY_URL,
   clientId: import.meta.env.VITE_EEN_CLIENT_ID,
