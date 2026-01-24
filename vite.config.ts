@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
-export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/een-observation-app/' : '/',
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/een-observation-app/' : '/',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -16,4 +16,4 @@ export default defineConfig({
     strictPort: true,
     open: true
   }
-})
+}))
