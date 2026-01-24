@@ -1,0 +1,33 @@
+{
+  "name": "een-camera-observation-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "@een/live-video-web-sdk": "^1.10.2",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "een-api-toolkit": "^0.3.30",
+    "pinia": "^3.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vue": "^3.5.27",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^25.0.10",
+    "autoprefixer": "^10.4.23",
+    "dotenv": "^17.2.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vue-tsc": "^2.2.12"
+  }
+}

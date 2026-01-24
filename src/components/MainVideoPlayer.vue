@@ -1,0 +1,348 @@
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { useAuthStore } from 'een-api-toolkit'
+import type { Camera, CameraStatus } from 'een-api-toolkit'
+import LivePlayer from '@een/live-video-web-sdk'
+
+const props = defineProps<{
+  camera: Camera
+}>()
+
+// Auth store for baseUrl and token
+const authStore = useAuthStore()
+
+// Video element reference
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+// Live player instance
+let livePlayer: LivePlayer | null = null
+
+// Stream state
+const loading = ref(true)
+const error = ref<string | null>(null)
+const isStreaming = ref(false)
+const isMounted = ref(true)
+
+// Helper to extract status string from the union type
+function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
+  if (!status) return undefined
+  if (typeof status === 'string') return status
+  return status.connectionStatus
+}
+
+// Check if camera is in a viewable state
+function isCameraOnline(status?: CameraStatus | { connectionStatus?: CameraStatus }): boolean {
+  const statusStr = getStatusString(status)
+  return statusStr === 'online' || statusStr === 'streaming' || statusStr === 'registered'
+}
+
+// Computed status values
+const statusString = computed(() => getStatusString(props.camera.status))
+const isOnline = computed(() => isCameraOnline(props.camera.status))
+
+// Status badge styling
+const statusClass = computed(() => {
+  const statusStr = statusString.value
+  switch (statusStr) {
+    case 'online':
+    case 'streaming':
+      return 'bg-green-500'
+    case 'offline':
+    case 'deviceOffline':
+    case 'bridgeOffline':
+      return 'bg-gray-500'
+    case 'error':
+    case 'invalidCredentials':
+      return 'bg-red-500'
+    default:
+      return 'bg-yellow-500'
+  }
+})
+
+// Stop the current live player and clear video element
+function stopLivePlayer() {
+  if (livePlayer) {
+    try {
+      livePlayer.stop()
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
+    livePlayer = null
+  }
+
+  // Clear the video element source to ensure clean restart
+  if (videoRef.value) {
+    videoRef.value.srcObject = null
+    videoRef.value.src = ''
+    videoRef.value.load()
+  }
+
+  isStreaming.value = false
+}
+
+// Initialize live video stream using Live Video SDK
+async function initializeLiveVideo() {
+  if (!isMounted.value) return
+
+  // Stop any existing player
+  stopLivePlayer()
+
+  loading.value = true
+  error.value = null
+
+  // Check if camera is online
+  if (!isOnline.value) {
+    loading.value = false
+    error.value = 'Camera is offline'
+    return
+  }
+
+  // Check authentication
+  if (!authStore.token || !authStore.baseUrl) {
+    loading.value = false
+    error.value = 'Authentication required'
+    return
+  }
+
+  // Wait for next tick to ensure video element is in DOM
+  await nextTick()
+
+  if (!videoRef.value) {
+    loading.value = false
+    error.value = 'Video element not available'
+    return
+  }
+
+  if (!isMounted.value) return
+
+  try {
+    // CRITICAL: Create LivePlayer with NO arguments
+    livePlayer = new LivePlayer()
+
+    // CRITICAL: Pass config to start() method, NOT constructor
+    await livePlayer.start({
+      videoElement: videoRef.value,
+      cameraId: props.camera.id,
+      baseUrl: authStore.baseUrl,
+      jwt: authStore.token
+    })
+
+    if (isMounted.value) {
+      isStreaming.value = true
+      loading.value = false
+    }
+  } catch (e) {
+    if (isMounted.value) {
+      const errorMessage = e instanceof Error ? e.message : 'Failed to start live video'
+      error.value = errorMessage
+      loading.value = false
+      stopLivePlayer()
+    }
+  }
+}
+
+// Watch for camera changes - stop current player and start new one
+watch(() => props.camera.id, async (newId, oldId) => {
+  if (newId !== oldId) {
+    console.log(`Camera changed from ${oldId} to ${newId}`)
+    // Small delay to ensure clean transition
+    await new Promise(resolve => setTimeout(resolve, 100))
+    initializeLiveVideo()
+  }
+})
+
+onMounted(() => {
+  initializeLiveVideo()
+})
+
+onUnmounted(() => {
+  isMounted.value = false
+  stopLivePlayer()
+})
+</script>
+
+<template>
+  <div class="main-video-player h-full flex gap-4" :data-camera-id="camera.id">
+    <!-- Video Container -->
+    <div class="flex-1 min-w-0 relative bg-gray-900 rounded-lg overflow-hidden">
+      <!-- Loading Overlay - shown on top of video element -->
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+      >
+        <div class="text-center">
+          <svg
+            class="w-12 h-12 mx-auto text-gray-500 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          <p class="mt-3 text-gray-400 text-sm">Loading HD stream...</p>
+        </div>
+      </div>
+
+      <!-- Error Overlay - shown on top of video element -->
+      <div
+        v-if="error && !loading"
+        class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+      >
+        <div class="text-center">
+          <svg
+            class="w-16 h-16 mx-auto text-gray-500 mb-3"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <p class="text-gray-400 text-sm">{{ error }}</p>
+          <button
+            @click="initializeLiveVideo"
+            class="mt-4 px-4 py-2 bg-een-accent text-white rounded-lg hover:bg-een-accent-dark transition-colors text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Element - ALWAYS rendered in DOM, visibility controlled by CSS -->
+      <div
+        class="video-wrapper w-full h-full"
+        :class="{ 'video-hidden': loading || error }"
+      >
+        <video
+          ref="videoRef"
+          :alt="camera.name"
+          class="w-full h-full object-contain"
+          autoplay
+          muted
+          playsinline
+        />
+      </div>
+
+      <!-- Live Badge -->
+      <div
+        v-if="isStreaming && !loading && !error"
+        class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
+      >
+        <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+        <span class="text-white text-xs font-medium">LIVE HD</span>
+      </div>
+    </div>
+
+    <!-- Camera Info Panel -->
+    <div class="w-72 flex-shrink-0 bg-gray-800 rounded-lg p-4 overflow-y-auto">
+      <h3 class="text-white font-semibold text-lg mb-4">Camera Information</h3>
+
+      <div class="space-y-4">
+        <!-- Status -->
+        <div class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Status</label>
+          <div class="flex items-center gap-2 mt-1">
+            <span
+              class="w-2 h-2 rounded-full"
+              :class="statusClass"
+            />
+            <span class="text-white text-sm capitalize">{{ statusString || 'Unknown' }}</span>
+          </div>
+        </div>
+
+        <!-- Camera Name -->
+        <div class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Name</label>
+          <p class="text-white text-sm mt-1">{{ camera.name }}</p>
+        </div>
+
+        <!-- Camera ID -->
+        <div class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Camera ID</label>
+          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.id }}</p>
+        </div>
+
+        <!-- Account ID -->
+        <div class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Account ID</label>
+          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.accountId }}</p>
+        </div>
+
+        <!-- Bridge ID (if available) -->
+        <div v-if="camera.bridgeId" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Bridge ID</label>
+          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.bridgeId }}</p>
+        </div>
+
+        <!-- Location ID (if available) -->
+        <div v-if="camera.locationId" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Location ID</label>
+          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
+        </div>
+
+        <!-- MAC Address (if available) -->
+        <div v-if="camera.macAddress" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">MAC Address</label>
+          <p class="text-white text-sm mt-1 font-mono">{{ camera.macAddress }}</p>
+        </div>
+
+        <!-- IP Address (if available) -->
+        <div v-if="camera.ipAddress" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">IP Address</label>
+          <p class="text-white text-sm mt-1 font-mono">{{ camera.ipAddress }}</p>
+        </div>
+
+        <!-- Timezone (if available) -->
+        <div v-if="camera.timezone" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">Timezone</label>
+          <p class="text-white text-sm mt-1">{{ camera.timezone }}</p>
+        </div>
+
+        <!-- GUID (if available) -->
+        <div v-if="camera.guid" class="info-item">
+          <label class="text-gray-400 text-xs uppercase tracking-wide">GUID</label>
+          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.guid }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.main-video-player {
+  min-height: 0;
+}
+
+.info-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.75rem;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* CRITICAL: Use visibility/position to hide video, NOT v-if
+   This ensures the video element is always in the DOM for the SDK */
+.video-wrapper.video-hidden {
+  visibility: hidden;
+  position: absolute;
+  pointer-events: none;
+}
+</style>
