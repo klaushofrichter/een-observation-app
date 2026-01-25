@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getCameras, getLayouts } from 'een-api-toolkit'
 import type { Camera, ListCamerasParams, EenError, Layout } from 'een-api-toolkit'
 import CameraCard from './CameraCard.vue'
+import ErrorCameraCard from './ErrorCameraCard.vue'
 
 const props = defineProps<{
   selectedCameraId: string | null
@@ -21,8 +22,12 @@ const totalSize = ref<number>(0)
 
 // Layout state
 const layouts = ref<Layout[]>([])
-const selectedLayoutId = ref<string>('all') // 'all' = All Cameras
+const selectedLayoutId = ref<string>('all') // 'all' = All Cameras, 'url' = URL-cameras
 const loadingLayouts = ref(false)
+
+// URL camera IDs state
+const urlCameraIds = ref<string[]>([])
+const inaccessibleCameraIds = ref<string[]>([]) // Camera IDs from URL that user cannot access
 
 // Pagination state - using dynamic calculation based on viewport
 const currentPage = ref(1)
@@ -60,12 +65,31 @@ const totalPages = computed(() => Math.ceil(totalSize.value / camerasPerPage.val
 const hasNextPage = computed(() => currentPage.value < totalPages.value)
 const hasPrevPage = computed(() => currentPage.value > 1)
 
-// Current page cameras (slice from loaded cameras or fetch specific page)
-const currentPageCameras = computed(() => {
+// Combined list of accessible cameras + inaccessible IDs for pagination
+type PageItem = { type: 'camera'; camera: Camera } | { type: 'error'; cameraId: string }
+
+const allPageItems = computed<PageItem[]>(() => {
+  const items: PageItem[] = []
+  // Add accessible cameras first
+  for (const camera of cameras.value) {
+    items.push({ type: 'camera', camera })
+  }
+  // Add inaccessible camera IDs as error items
+  for (const cameraId of inaccessibleCameraIds.value) {
+    items.push({ type: 'error', cameraId })
+  }
+  return items
+})
+
+// Current page items (slice from combined list)
+const currentPageItems = computed(() => {
   const start = (currentPage.value - 1) * camerasPerPage.value
   const end = start + camerasPerPage.value
-  return cameras.value.slice(start, end)
+  return allPageItems.value.slice(start, end)
 })
+
+// Check if URL cameras are configured
+const hasUrlCameras = computed(() => urlCameraIds.value.length > 0)
 
 // Fetch cameras from API
 async function fetchCameras(append = false) {
@@ -110,9 +134,28 @@ async function fetchLayouts() {
 
 // Apply layout filter to cameras
 function applyLayoutFilter() {
+  // Reset inaccessible cameras
+  inaccessibleCameraIds.value = []
+
   if (selectedLayoutId.value === 'all') {
     // Show all cameras
     cameras.value = [...allCameras.value]
+  } else if (selectedLayoutId.value === 'url') {
+    // Filter to only URL-specified cameras
+    const accessibleCameras: Camera[] = []
+    const inaccessible: string[] = []
+
+    for (const cameraId of urlCameraIds.value) {
+      const camera = allCameras.value.find(cam => cam.id === cameraId)
+      if (camera) {
+        accessibleCameras.push(camera)
+      } else {
+        inaccessible.push(cameraId)
+      }
+    }
+
+    cameras.value = accessibleCameras
+    inaccessibleCameraIds.value = inaccessible
   } else {
     // Find selected layout and filter cameras
     const layout = layouts.value.find(l => l.id === selectedLayoutId.value)
@@ -123,7 +166,9 @@ function applyLayoutFilter() {
       cameras.value = [...allCameras.value]
     }
   }
-  totalSize.value = cameras.value.length
+
+  // Total size includes accessible cameras + inaccessible error cards
+  totalSize.value = cameras.value.length + inaccessibleCameraIds.value.length
 
   // Check if current camera is in the filtered list
   const currentCameraId = props.selectedCameraId
@@ -199,6 +244,17 @@ function handleResize() {
 let resizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
+  // Check for URL camera IDs in sessionStorage
+  const storedCameraIds = sessionStorage.getItem('een_url_camera_ids')
+  if (storedCameraIds) {
+    // Parse comma-separated camera IDs
+    urlCameraIds.value = storedCameraIds.split(',').map(id => id.trim()).filter(id => id.length > 0)
+    // Auto-select "URL-cameras" if we have URL camera IDs
+    if (urlCameraIds.value.length > 0) {
+      selectedLayoutId.value = 'url'
+    }
+  }
+
   await fetchCameras()
 
   // Lazy load layouts after cameras are shown
@@ -237,6 +293,7 @@ onUnmounted(() => {
           class="text-sm font-semibold text-gray-700 bg-transparent border-none cursor-pointer hover:text-gray-900 focus:outline-none focus:ring-0 pr-6 -ml-1 max-w-[160px] truncate"
           title="Select layout"
         >
+          <option v-if="hasUrlCameras" value="url">URL-cameras</option>
           <option value="all">All Cameras</option>
           <option
             v-for="layout in layouts"
@@ -322,19 +379,25 @@ onUnmounted(() => {
       </div>
 
       <!-- No Cameras State -->
-      <div v-else-if="cameras.length === 0" class="p-4 text-center text-gray-500">
+      <div v-else-if="cameras.length === 0 && inaccessibleCameraIds.length === 0" class="p-4 text-center text-gray-500">
         <p class="text-sm">No cameras found</p>
       </div>
 
       <!-- Camera Cards Grid -->
       <div v-else class="p-3 space-y-3 h-full overflow-y-auto">
-        <CameraCard
-          v-for="camera in currentPageCameras"
-          :key="camera.id"
-          :camera="camera"
-          :selected="camera.id === selectedCameraId"
-          @select="handleCameraSelect"
-        />
+        <template v-for="item in currentPageItems" :key="item.type === 'camera' ? item.camera.id : item.cameraId">
+          <CameraCard
+            v-if="item.type === 'camera'"
+            :camera="item.camera"
+            :selected="item.camera.id === selectedCameraId"
+            @select="handleCameraSelect"
+          />
+          <ErrorCameraCard
+            v-else
+            :camera-id="item.cameraId"
+            error-message="No access to camera"
+          />
+        </template>
       </div>
     </div>
   </div>

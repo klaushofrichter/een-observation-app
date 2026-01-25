@@ -28,7 +28,12 @@ async function loadUser() {
   }
 }
 
-onMounted(loadUser)
+onMounted(() => {
+  // Initialize auth store from localStorage before loading user
+  // This restores the session if a valid token exists
+  authStore.initialize()
+  loadUser()
+})
 
 watch(() => authStore.isAuthenticated, loadUser)
 </script>
