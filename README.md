@@ -1,44 +1,69 @@
 # EEN Camera Observation App
 
-A Vue 3 single-page application for Eagle Eye Networks camera monitoring with live video and event feeds.
+A Vue 3 single-page application for Eagle Eye Networks camera monitoring with live video streaming, event detection, and real-time notifications.
+
+![App Screenshot](./public/app-screenshot.png)
 
 ## Features
 
-- **OAuth Authentication** - Secure login via Eagle Eye Networks OAuth flow
-- **Camera Sidebar** - Paginated list with live preview thumbnails (MJPEG multipart streams)
-- **HD Video Player** - Full-quality live video using the EEN Live Video SDK
-- **Events System**
-  - Event type toggles (motion detection preselected by default)
-  - Historic events with thumbnails
-  - Live SSE event feed with auto-scroll
+### Camera Management
+- **Camera Sidebar** - Paginated list of cameras with live MJPEG preview thumbnails
+- **Layout Support** - Filter cameras by predefined layouts or view all cameras
+- **URL Camera Selection** - Deep-link to specific cameras via URL parameters (see below)
 
-## Screenshot
+### Video Playback
+- **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
+- **Recorded Playback** - HLS video playback for historic events
+- **Camera Information Panel** - Display camera status, name, ID, and account info
+
+### Events System
+- **Event Type Filtering** - Toggle event types (motion detection, person detection, device status)
+- **Historic Events Panel** - Browse past events with thumbnails, configurable time range, auto-refresh
+- **Live Events Panel** - Real-time Server-Sent Events (SSE) feed with auto-scroll and reconnection
+- **Event Thumbnails** - Hover preview with enlarged thumbnail popup
+- **Click-to-Playback** - Click any event to jump to recorded video at that timestamp
+
+### Authentication
+- **OAuth 2.0 Flow** - Secure login via Eagle Eye Networks OAuth
+- **Session Persistence** - Stay logged in across page refreshes using localStorage
+- **Token Auto-Refresh** - Automatic token renewal before expiration
+
+## URL Camera Selection
+
+You can deep-link directly to specific cameras by adding the `id` parameter to the URL:
 
 ```
-+-------------------------------------------------------------------+
-|  Top Bar: App Name | User Info                          | Logout  |
-+-------------------------------------------------------------------+
-|          |                                                        |
-|  Camera  |  Video Section (HD feed + camera info)                 |
-|  Sidebar |                                                        |
-|          |--------------------------------------------------------|
-| (Preview |  Events Section                                        |
-|  Videos) |  +---------------+----------------+------------------+ |
-|          |  | Event Types   | Historic Events| Live SSE Events  | |
-|  [Paging]|  | (toggles)     | (filtered)     | (filtered)       | |
-|          |  +---------------+----------------+------------------+ |
-+-------------------------------------------------------------------+
+http://127.0.0.1:3333?id=1005963a,1003e46b
 ```
+
+When camera IDs are provided in the URL:
+- A **"URL-cameras"** option appears at the top of the layout dropdown
+- Only the specified cameras are displayed in the sidebar
+- If a camera ID is invalid or inaccessible, an error card is shown instead
+- The URL parameters persist through the OAuth login flow
+- Accessing the app without the `id` parameter clears any previously stored camera IDs
 
 ## Technology Stack
 
-- **Framework:** Vue 3 with Composition API
-- **Build Tool:** Vite
+- **Framework:** Vue 3.5 with Composition API
+- **Build Tool:** Vite 7
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS v4
+- **State Management:** Pinia
 - **API Integration:** [een-api-toolkit](https://www.npmjs.com/package/een-api-toolkit)
 - **Live Video:** @een/live-video-web-sdk
+- **Recorded Video:** hls.js
 - **Testing:** Playwright (E2E)
+
+## een-api-toolkit Functions Used
+
+This application uses the following functions from [een-api-toolkit](https://github.com/klaushofrichter/een-api-toolkit):
+
+- **Authentication:** `initEenToolkit`, `useAuthStore`, `getAuthUrl`, `handleAuthCallback`, `revokeToken`
+- **User:** `getCurrentUser`
+- **Devices:** `getCameras`, `getLayouts`
+- **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
+- **Events:** `listEvents`, `listEventTypes`, `listEventFieldValues`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
 
 ## Prerequisites
 
@@ -91,12 +116,17 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 ```
 src/
 ├── components/
-│   ├── CameraSidebar.vue      # Paginated camera list
-│   ├── CameraCard.vue         # Preview video card
-│   ├── MainVideoPlayer.vue    # HD video with Live SDK
+│   ├── CameraSidebar.vue      # Paginated camera list with layout filter
+│   ├── CameraCard.vue         # Preview video card with status badge
+│   ├── ErrorCameraCard.vue    # Error card for inaccessible cameras
+│   ├── MainVideoPlayer.vue    # HD video with Live SDK + HLS playback
 │   ├── EventTypesPanel.vue    # Event type toggles
-│   ├── HistoricEventsPanel.vue # Historic events list
-│   └── LiveEventsPanel.vue    # SSE live events
+│   ├── HistoricEventsPanel.vue # Historic events with thumbnails
+│   └── LiveEventsPanel.vue    # SSE live events feed
+├── composables/
+│   ├── useImageCache.ts       # LRU cache for event thumbnails
+│   ├── useHlsPlayer.ts        # HLS.js player management
+│   └── useEventAge.ts         # Event age formatting
 ├── views/
 │   ├── Home.vue               # Main application view
 │   ├── Login.vue              # OAuth login page
@@ -106,20 +136,18 @@ src/
 │   └── index.ts               # Vue Router with auth guards
 ├── assets/
 │   └── main.css               # Tailwind CSS styles
-├── types/
-│   └── een.ts                 # TypeScript type exports
-├── App.vue                    # Root component
+├── App.vue                    # Root component with auth initialization
 └── main.ts                    # Application entry point
 
 tests/
-├── auth.spec.ts               # Authentication tests (4)
-├── cameras.spec.ts            # Camera selection tests (5)
-└── events.spec.ts             # Events system tests (5)
+├── auth.spec.ts               # Authentication tests
+├── cameras.spec.ts            # Camera selection tests
+└── events.spec.ts             # Events system tests
 ```
 
 ## Testing
 
-The project includes 14 Playwright E2E tests covering:
+The project includes Playwright E2E tests covering:
 
 - OAuth login/logout flow
 - Camera sidebar and selection
@@ -159,10 +187,12 @@ The OAuth callback check must come BEFORE the auth check in the router guard. Th
 
 This project includes specialized Claude Code agents for een-api-toolkit development:
 
+- `een-setup-agent` - Vue 3 project setup and configuration
 - `een-auth-agent` - OAuth authentication flows
 - `een-devices-agent` - Camera and bridge management
 - `een-media-agent` - Video streaming and playback
 - `een-events-agent` - Events and SSE subscriptions
+- `een-grouping-agent` - Layouts and camera groupings
 - `een-users-agent` - User management
 
 ## License

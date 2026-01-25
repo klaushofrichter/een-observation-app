@@ -153,7 +153,6 @@ async function initializeLiveVideo() {
 // Watch for camera changes - stop current player and start new one
 watch(() => props.camera.id, async (newId, oldId) => {
   if (newId !== oldId) {
-    console.log(`Camera changed from ${oldId} to ${newId}`)
     // Stop HLS if playing
     hlsPlayer.resetVideo()
     // Small delay to ensure clean transition
