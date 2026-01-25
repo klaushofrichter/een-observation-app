@@ -35,6 +35,10 @@ const eventTypeNames = ref<Map<string, string>>(new Map())
 const autoScroll = ref(true)
 const autoReconnect = ref(false)
 const hoveredEventId = ref<string | null>(null)
+
+// Reconnection timer (SSE subscriptions expire after 15 minutes)
+const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes (before 15 min expiry)
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 
 // Refs
@@ -142,11 +146,65 @@ function handleEventClick(event: SSEEvent) {
   })
 }
 
+// Clear the reconnect timer
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+    console.log('[SSE] Reconnect timer cleared')
+  }
+}
+
+// Start the reconnect timer (proactive reconnection before TTL expires)
+function startReconnectTimer() {
+  clearReconnectTimer()
+
+  if (!autoReconnect.value) {
+    console.log('[SSE] Auto-reconnect disabled, not starting timer')
+    return
+  }
+
+  console.log(`[SSE] Starting reconnect timer for ${SUBSCRIPTION_TTL_MS / 1000 / 60} minutes`)
+  reconnectTimer = setTimeout(() => {
+    console.log('[SSE] Reconnect timer fired - subscription TTL approaching')
+    if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
+      console.log('[SSE] Triggering proactive reconnection...')
+      // Don't clear events on proactive reconnect
+      reconnect()
+    }
+  }, SUBSCRIPTION_TTL_MS)
+}
+
+// Reconnect without clearing events
+async function reconnect() {
+  console.log('[SSE] Reconnecting...')
+
+  // Close existing connection
+  if (sseConnection.value) {
+    sseConnection.value.close()
+    sseConnection.value = null
+  }
+
+  // Delete old subscription
+  if (subscriptionId.value) {
+    console.log(`[SSE] Deleting old subscription: ${subscriptionId.value}`)
+    await deleteEventSubscription(subscriptionId.value)
+    subscriptionId.value = null
+  }
+
+  // Create new subscription (don't clear events)
+  await connectWithoutClearingEvents()
+}
+
 // Handle status change
 function handleStatusChange(status: SSEConnectionStatus) {
+  console.log(`[SSE] Status changed: ${connectionStatus.value} -> ${status}`)
   connectionStatus.value = status
 
   if (status === 'error' || status === 'disconnected') {
+    console.log('[SSE] Connection lost or errored')
+    clearReconnectTimer()
+
     // Clean up if connection lost
     if (sseConnection.value) {
       sseConnection.value = null
@@ -154,13 +212,18 @@ function handleStatusChange(status: SSEConnectionStatus) {
 
     // Auto-reconnect if enabled and we have camera/types
     if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
+      console.log('[SSE] Auto-reconnect enabled, will reconnect in 2 seconds...')
       // Small delay before reconnecting
       setTimeout(() => {
         if (autoReconnect.value && !isConnected.value && !isConnecting.value) {
+          console.log('[SSE] Executing auto-reconnect')
           connect()
         }
       }, 2000)
     }
+  } else if (status === 'connected') {
+    // Start the proactive reconnect timer when connected
+    startReconnectTimer()
   }
 }
 
@@ -176,26 +239,47 @@ function handleError(error: Error) {
 async function connect() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
+  console.log('[SSE] Connect called - clearing events')
   connectionStatus.value = 'connecting'
   connectionError.value = null
   events.value = []
+
+  await createAndConnectSubscription()
+}
+
+// Connect without clearing events (for proactive reconnection)
+async function connectWithoutClearingEvents() {
+  if (!props.camera || props.selectedTypes.length === 0) return
+
+  console.log('[SSE] ConnectWithoutClearingEvents called - preserving events')
+  connectionStatus.value = 'connecting'
+  connectionError.value = null
+
+  await createAndConnectSubscription()
+}
+
+// Core subscription creation and connection logic
+async function createAndConnectSubscription() {
+  console.log('[SSE] Creating new subscription...')
 
   // Create subscription
   const subscriptionResult = await createEventSubscription({
     deliveryConfig: { type: 'serverSentEvents.v1' },
     filters: [{
-      actors: [`camera:${props.camera.id}`],
+      actors: [`camera:${props.camera!.id}`],
       types: props.selectedTypes.map(type => ({ id: type }))
     }]
   })
 
   if (subscriptionResult.error) {
+    console.log('[SSE] Subscription creation failed:', subscriptionResult.error.message)
     connectionError.value = subscriptionResult.error
     connectionStatus.value = 'error'
     return
   }
 
   subscriptionId.value = subscriptionResult.data.id
+  console.log(`[SSE] Subscription created: ${subscriptionId.value}`)
 
   // Get SSE URL
   const sseUrl = subscriptionResult.data.deliveryConfig.type === 'serverSentEvents.v1'
@@ -203,6 +287,7 @@ async function connect() {
     : null
 
   if (!sseUrl) {
+    console.log('[SSE] No SSE URL returned')
     connectionError.value = {
       code: 'API_ERROR',
       message: 'No SSE URL returned from subscription'
@@ -210,6 +295,8 @@ async function connect() {
     connectionStatus.value = 'error'
     return
   }
+
+  console.log('[SSE] Connecting to SSE stream...')
 
   // Connect to SSE stream
   const connectionResult = connectToEventSubscription(sseUrl, {
@@ -219,30 +306,40 @@ async function connect() {
   })
 
   if (connectionResult.error) {
+    console.log('[SSE] Connection failed:', connectionResult.error.message)
     connectionError.value = connectionResult.error
     connectionStatus.value = 'error'
     return
   }
 
   sseConnection.value = connectionResult.data
+  console.log('[SSE] SSE connection established')
 }
 
 // Disconnect from SSE stream
 async function disconnect() {
+  console.log('[SSE] Disconnect called')
+
+  // Clear reconnect timer
+  clearReconnectTimer()
+
   // Close SSE connection
   if (sseConnection.value) {
+    console.log('[SSE] Closing SSE connection')
     sseConnection.value.close()
     sseConnection.value = null
   }
 
   // Delete subscription
   if (subscriptionId.value) {
+    console.log(`[SSE] Deleting subscription: ${subscriptionId.value}`)
     await deleteEventSubscription(subscriptionId.value)
     subscriptionId.value = null
   }
 
   connectionStatus.value = 'disconnected'
   connectionError.value = null
+  console.log('[SSE] Disconnected')
 }
 
 // Clear events
