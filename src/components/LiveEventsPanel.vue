@@ -253,10 +253,11 @@ function handleError(error: Error) {
 async function connect() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
-  console.log('[SSE] Connect called - clearing events')
+  console.log('[SSE] Connect called - clearing events and images')
   connectionStatus.value = 'connecting'
   connectionError.value = null
   events.value = []
+  clearImages() // Clear images to prevent showing thumbnails from previous camera
 
   await createAndConnectSubscription()
 }

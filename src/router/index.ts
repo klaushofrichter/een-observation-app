@@ -69,10 +69,17 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  // Capture URL camera IDs before redirecting to login
+  // Handle URL camera IDs
   // Store them in sessionStorage so they persist through the OAuth flow but not across sessions
-  if (to.path === '/' && to.query.id) {
-    sessionStorage.setItem('een_url_camera_ids', to.query.id as string)
+  if (to.path === '/') {
+    if (to.query.id) {
+      // Store camera IDs from URL
+      sessionStorage.setItem('een_url_camera_ids', to.query.id as string)
+    } else {
+      // Clear stored camera IDs when accessing without ?id parameter
+      // This prevents previous session's URL cameras from being used
+      sessionStorage.removeItem('een_url_camera_ids')
+    }
   }
 
   if (to.meta.requiresAuth && !isAuthenticated()) {
