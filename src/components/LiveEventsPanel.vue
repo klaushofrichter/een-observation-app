@@ -13,6 +13,7 @@ import { useEventAge } from '@/composables/useEventAge'
 const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
+  isDark?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -153,7 +154,6 @@ function clearReconnectTimer() {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
-    console.log('[SSE] Reconnect timer cleared')
   }
 }
 
@@ -162,15 +162,11 @@ function startReconnectTimer() {
   clearReconnectTimer()
 
   if (!autoReconnect.value) {
-    console.log('[SSE] Auto-reconnect disabled, not starting timer')
     return
   }
 
-  console.log(`[SSE] Starting reconnect timer for ${SUBSCRIPTION_TTL_MS / 1000 / 60} minutes`)
   reconnectTimer = setTimeout(() => {
-    console.log('[SSE] Reconnect timer fired - subscription TTL approaching')
     if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
-      console.log('[SSE] Triggering proactive reconnection...')
       // Don't clear events on proactive reconnect
       reconnect()
     }
@@ -179,8 +175,6 @@ function startReconnectTimer() {
 
 // Reconnect without clearing events
 async function reconnect() {
-  console.log('[SSE] Reconnecting (proactive)...')
-
   // Set flag to prevent handleStatusChange from triggering another connect
   isProactiveReconnecting = true
 
@@ -192,7 +186,6 @@ async function reconnect() {
 
   // Delete old subscription
   if (subscriptionId.value) {
-    console.log(`[SSE] Deleting old subscription: ${subscriptionId.value}`)
     await deleteEventSubscription(subscriptionId.value)
     subscriptionId.value = null
   }
@@ -206,11 +199,9 @@ async function reconnect() {
 
 // Handle status change
 function handleStatusChange(status: SSEConnectionStatus) {
-  console.log(`[SSE] Status changed: ${connectionStatus.value} -> ${status}`)
   connectionStatus.value = status
 
   if (status === 'error' || status === 'disconnected') {
-    console.log('[SSE] Connection lost or errored')
     clearReconnectTimer()
 
     // Clean up if connection lost
@@ -220,17 +211,14 @@ function handleStatusChange(status: SSEConnectionStatus) {
 
     // Skip auto-reconnect if we're doing a proactive reconnection
     if (isProactiveReconnecting) {
-      console.log('[SSE] Proactive reconnection in progress, skipping auto-reconnect')
       return
     }
 
     // Auto-reconnect if enabled and we have camera/types
     if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
-      console.log('[SSE] Auto-reconnect enabled, will reconnect in 2 seconds...')
       // Small delay before reconnecting
       setTimeout(() => {
         if (autoReconnect.value && !isConnected.value && !isConnecting.value && !isProactiveReconnecting) {
-          console.log('[SSE] Executing auto-reconnect')
           connect()
         }
       }, 2000)
@@ -253,7 +241,6 @@ function handleError(error: Error) {
 async function connect() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
-  console.log('[SSE] Connect called - clearing events and images')
   connectionStatus.value = 'connecting'
   connectionError.value = null
   events.value = []
@@ -266,7 +253,6 @@ async function connect() {
 async function connectWithoutClearingEvents() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
-  console.log('[SSE] ConnectWithoutClearingEvents called - preserving events')
   connectionStatus.value = 'connecting'
   connectionError.value = null
 
@@ -275,8 +261,6 @@ async function connectWithoutClearingEvents() {
 
 // Core subscription creation and connection logic
 async function createAndConnectSubscription() {
-  console.log('[SSE] Creating new subscription...')
-
   // Create subscription
   const subscriptionResult = await createEventSubscription({
     deliveryConfig: { type: 'serverSentEvents.v1' },
@@ -287,14 +271,12 @@ async function createAndConnectSubscription() {
   })
 
   if (subscriptionResult.error) {
-    console.log('[SSE] Subscription creation failed:', subscriptionResult.error.message)
     connectionError.value = subscriptionResult.error
     connectionStatus.value = 'error'
     return
   }
 
   subscriptionId.value = subscriptionResult.data.id
-  console.log(`[SSE] Subscription created: ${subscriptionId.value}`)
 
   // Get SSE URL
   const sseUrl = subscriptionResult.data.deliveryConfig.type === 'serverSentEvents.v1'
@@ -302,7 +284,6 @@ async function createAndConnectSubscription() {
     : null
 
   if (!sseUrl) {
-    console.log('[SSE] No SSE URL returned')
     connectionError.value = {
       code: 'API_ERROR',
       message: 'No SSE URL returned from subscription'
@@ -310,8 +291,6 @@ async function createAndConnectSubscription() {
     connectionStatus.value = 'error'
     return
   }
-
-  console.log('[SSE] Connecting to SSE stream...')
 
   // Connect to SSE stream
   const connectionResult = connectToEventSubscription(sseUrl, {
@@ -321,40 +300,33 @@ async function createAndConnectSubscription() {
   })
 
   if (connectionResult.error) {
-    console.log('[SSE] Connection failed:', connectionResult.error.message)
     connectionError.value = connectionResult.error
     connectionStatus.value = 'error'
     return
   }
 
   sseConnection.value = connectionResult.data
-  console.log('[SSE] SSE connection established')
 }
 
 // Disconnect from SSE stream
 async function disconnect() {
-  console.log('[SSE] Disconnect called')
-
   // Clear reconnect timer
   clearReconnectTimer()
 
   // Close SSE connection
   if (sseConnection.value) {
-    console.log('[SSE] Closing SSE connection')
     sseConnection.value.close()
     sseConnection.value = null
   }
 
   // Delete subscription
   if (subscriptionId.value) {
-    console.log(`[SSE] Deleting subscription: ${subscriptionId.value}`)
     await deleteEventSubscription(subscriptionId.value)
     subscriptionId.value = null
   }
 
   connectionStatus.value = 'disconnected'
   connectionError.value = null
-  console.log('[SSE] Disconnected')
 }
 
 // Clear events
@@ -423,7 +395,7 @@ onUnmounted(async () => {
 <template>
   <div class="live-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
-      <h3 class="text-sm font-semibold text-gray-700">Live Events</h3>
+      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Live Events</h3>
       <div class="flex items-center gap-1">
         <!-- Connection Status Indicator -->
         <span
@@ -467,35 +439,35 @@ onUnmounted(async () => {
     </div>
 
     <!-- Error State -->
-    <div v-if="connectionError" class="text-xs text-red-500 mb-2 px-1 py-1 bg-red-50 rounded flex-shrink-0">
+    <div v-if="connectionError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
       {{ connectionError.message }}
     </div>
 
     <!-- No Camera Selected -->
     <div v-if="!camera" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Select a camera to stream live events
       </div>
     </div>
 
     <!-- No Types Selected -->
     <div v-else-if="selectedTypes.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Select event types to stream
       </div>
     </div>
 
     <!-- Not Connected -->
     <div v-else-if="!isConnected && !isConnecting && events.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Click Connect to start<br/>streaming live events
       </div>
     </div>
 
     <!-- Connecting -->
     <div v-else-if="isConnecting && events.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-500 flex items-center">
-        <svg class="animate-spin h-3 w-3 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24">
+      <div class="text-xs flex items-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+        <svg class="animate-spin h-3 w-3 mr-1" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -511,7 +483,7 @@ onUnmounted(async () => {
       @scroll="handleScroll"
     >
       <!-- Waiting for events -->
-      <div v-if="events.length === 0 && isConnected" class="text-xs text-gray-400 text-center py-4">
+      <div v-if="events.length === 0 && isConnected" class="text-xs text-center py-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Waiting for new live events...
       </div>
 
@@ -519,12 +491,14 @@ onUnmounted(async () => {
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 bg-blue-50 rounded border-l-2 border-blue-400 animate-fade-in cursor-pointer"
+        class="relative flex items-center gap-2 p-1.5 rounded border-l-2 border-blue-400 animate-fade-in cursor-pointer"
+        :class="isDark ? 'bg-blue-900/30' : 'bg-blue-50'"
         @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->
         <div
-          class="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0"
+          class="w-12 h-8 rounded overflow-hidden flex-shrink-0"
+          :class="isDark ? 'bg-gray-700' : 'bg-gray-200'"
           @mouseenter="handleThumbnailHover(event, $event)"
           @mouseleave="clearHover"
         >
@@ -535,7 +509,7 @@ onUnmounted(async () => {
             class="w-full h-full object-cover cursor-pointer"
           />
           <div v-else class="w-full h-full flex items-center justify-center">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
@@ -543,12 +517,12 @@ onUnmounted(async () => {
 
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
-          <div class="text-xs font-medium text-gray-700 truncate">
+          <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
             {{ getEventTypeName(event.type) }}
           </div>
-          <div class="text-xs text-gray-400 flex justify-between">
+          <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
-            <span class="text-gray-700">{{ formatAge(event.startTimestamp) }}</span>
+            <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(event.startTimestamp) }}</span>
           </div>
         </div>
       </div>
@@ -557,7 +531,8 @@ onUnmounted(async () => {
       <Teleport to="body">
         <div
           v-if="hoveredEventId && hoverPosition && getImage(hoveredEventId)"
-          class="fixed z-[9999] bg-white rounded-lg shadow-xl border border-gray-200 p-2 pointer-events-none"
+          class="fixed z-[9999] rounded-lg shadow-xl p-2 pointer-events-none"
+          :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
           :style="{
             top: hoverPosition.bottom + 'px',
             left: hoverPosition.right + 'px',
@@ -574,11 +549,12 @@ onUnmounted(async () => {
     </div>
 
     <!-- Footer -->
-    <div v-if="events.length > 0" class="flex items-center justify-between text-xs text-gray-400 mt-1 flex-shrink-0 pt-1 border-t border-gray-100">
+    <div v-if="events.length > 0" class="flex items-center justify-between text-xs mt-1 flex-shrink-0 pt-1 border-t" :class="isDark ? 'text-gray-500 border-gray-700' : 'text-gray-400 border-gray-100'">
       <span>{{ events.length }} event{{ events.length !== 1 ? 's' : '' }}</span>
       <button
         @click="clearEvents"
-        class="text-gray-500 hover:text-gray-700 transition-colors"
+        class="transition-colors"
+        :class="isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'"
         title="Clear events"
       >
         Clear
@@ -588,7 +564,8 @@ onUnmounted(async () => {
     <!-- Auto-scroll indicator -->
     <div
       v-if="events.length > 0 && !autoScroll"
-      class="text-xs text-center text-gray-400 py-1 cursor-pointer hover:text-blue-600"
+      class="text-xs text-center py-1 cursor-pointer"
+      :class="isDark ? 'text-gray-500 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'"
       @click="autoScroll = true; scrollToTop()"
     >
       Click to resume auto-scroll
@@ -597,7 +574,8 @@ onUnmounted(async () => {
     <!-- At bottom / max events indicator -->
     <div
       v-if="isAtBottom"
-      class="text-xs text-center text-orange-500 py-1 bg-orange-50 rounded"
+      class="text-xs text-center py-1 rounded"
+      :class="isDark ? 'text-orange-400 bg-orange-900/30' : 'text-orange-500 bg-orange-50'"
     >
       Reached max events. Refresh Historic Events to archive.
     </div>

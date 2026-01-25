@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, inject } from 'vue'
+import type { Ref } from 'vue'
 import { getCurrentUser } from 'een-api-toolkit'
 import type { Camera } from 'een-api-toolkit'
 import { useRouter } from 'vue-router'
@@ -8,6 +9,9 @@ import MainVideoPlayer from '../components/MainVideoPlayer.vue'
 import EventTypesPanel from '../components/EventTypesPanel.vue'
 import HistoricEventsPanel from '../components/HistoricEventsPanel.vue'
 import LiveEventsPanel from '../components/LiveEventsPanel.vue'
+
+// Inject dark mode state
+const isDark = inject<Ref<boolean>>('isDark', ref(false))
 
 interface UserProfile {
   id: string
@@ -109,18 +113,19 @@ onMounted(async () => {
       <!-- Main Content Area -->
       <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Video Section (Top) -->
-        <div class="flex-1 min-h-0 bg-gray-900 p-4">
+        <div class="flex-1 min-h-0 p-4" :class="isDark ? 'bg-gray-800' : 'bg-gray-100'">
           <div v-if="selectedCamera" class="h-full">
             <MainVideoPlayer
               :camera="selectedCamera"
               :playback-mode="playbackMode"
               :playback-timestamp="playbackTimestamp"
+              :is-dark="isDark"
             />
           </div>
 
           <!-- No Camera Selected -->
           <div v-else class="h-full flex items-center justify-center">
-            <div class="text-center text-gray-400">
+            <div class="text-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
               <svg
                 class="w-16 h-16 mx-auto mb-3"
                 fill="none"
@@ -140,21 +145,23 @@ onMounted(async () => {
         </div>
 
         <!-- Events Section (Bottom) -->
-        <div class="h-64 border-t border-gray-200 bg-white">
+        <div class="h-64 border-t" :class="isDark ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'">
           <div class="h-full flex">
             <!-- Event Types Panel -->
-            <div class="w-48 border-r border-gray-200 p-3">
+            <div class="w-48 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
               <EventTypesPanel
                 :camera="selectedCamera"
+                :is-dark="isDark"
                 @update:selected-types="handleEventTypesUpdate"
               />
             </div>
 
             <!-- Historic Events Panel -->
-            <div class="flex-1 border-r border-gray-200 p-3">
+            <div class="flex-1 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
               <HistoricEventsPanel
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                :is-dark="isDark"
                 @events-refreshed="handleHistoricEventsRefreshed"
                 @event-clicked="handleEventClick"
               />
@@ -166,6 +173,7 @@ onMounted(async () => {
                 ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                :is-dark="isDark"
                 @event-clicked="handleEventClick"
               />
             </div>

@@ -6,6 +6,7 @@ import type { Camera, CameraStatus, Feed } from 'een-api-toolkit'
 const props = defineProps<{
   camera: Camera
   selected: boolean
+  isDark?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -144,7 +145,7 @@ onUnmounted(() => {
   <div
     class="camera-card cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 hover:shadow-lg"
     :class="[
-      selected ? 'border-een-accent shadow-lg' : 'border-gray-200 hover:border-gray-300'
+      selected ? 'border-een-accent shadow-lg' : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
     ]"
     @click="handleClick"
     :data-camera-id="camera.id"
@@ -207,8 +208,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Camera Info -->
-    <div class="p-2 bg-white">
-      <h3 class="text-sm font-medium text-gray-800 truncate" :title="camera.name">
+    <div class="p-2" :class="isDark ? 'bg-gray-700' : 'bg-white'">
+      <h3 class="text-sm font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-800'" :title="camera.name">
         {{ camera.name }}
       </h3>
     </div>

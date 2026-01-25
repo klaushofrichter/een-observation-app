@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
+import type { Ref } from 'vue'
 import { getCameras, getLayouts } from 'een-api-toolkit'
 import type { Camera, ListCamerasParams, EenError, Layout } from 'een-api-toolkit'
 import CameraCard from './CameraCard.vue'
@@ -8,6 +9,9 @@ import ErrorCameraCard from './ErrorCameraCard.vue'
 const props = defineProps<{
   selectedCameraId: string | null
 }>()
+
+// Inject dark mode state
+const isDark = inject<Ref<boolean>>('isDark', ref(false))
 
 const emit = defineEmits<{
   'select-camera': [camera: Camera]
@@ -281,24 +285,32 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="camera-sidebar h-full flex flex-col bg-gray-50 border-r border-gray-200">
+  <div
+    class="camera-sidebar h-full flex flex-col border-r"
+    :class="isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'"
+  >
     <!-- Header with Layout Selector and Pagination Controls -->
-    <div class="sidebar-header px-3 py-2 bg-white border-b border-gray-200">
+    <div
+      class="sidebar-header px-3 py-2 border-b"
+      :class="isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'"
+    >
       <div class="flex items-center justify-between mb-2">
         <!-- Layout Dropdown -->
         <select
           :value="selectedLayoutId"
           @change="handleLayoutChange"
           :disabled="loadingLayouts"
-          class="text-sm font-semibold text-gray-700 bg-transparent border-none cursor-pointer hover:text-gray-900 focus:outline-none focus:ring-0 pr-6 -ml-1 max-w-[160px] truncate"
+          class="text-sm font-semibold bg-transparent border-none cursor-pointer focus:outline-none focus:ring-0 pr-6 -ml-1 max-w-[160px] truncate"
+          :class="isDark ? 'text-gray-200 hover:text-white' : 'text-gray-700 hover:text-gray-900'"
           title="Select layout"
         >
-          <option v-if="hasUrlCameras" value="url">URL-cameras</option>
-          <option value="all">All Cameras</option>
+          <option v-if="hasUrlCameras" value="url" :class="isDark ? 'bg-gray-800' : ''">URL-cameras</option>
+          <option value="all" :class="isDark ? 'bg-gray-800' : ''">All Cameras</option>
           <option
             v-for="layout in layouts"
             :key="layout.id"
             :value="layout.id"
+            :class="isDark ? 'bg-gray-800' : ''"
           >
             {{ layout.name }}
           </option>
@@ -306,7 +318,8 @@ onUnmounted(() => {
         <button
           @click="refresh"
           :disabled="loading"
-          class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          class="p-1 rounded transition-colors"
+          :class="isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'"
           title="Refresh cameras"
         >
           <svg
@@ -331,26 +344,28 @@ onUnmounted(() => {
         <button
           @click="prevPage"
           :disabled="!hasPrevPage || loading"
-          class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200'"
         >
           Prev
         </button>
 
-        <span class="text-gray-600">
+        <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">
           Page {{ currentPage }} of {{ totalPages }}
         </span>
 
         <button
           @click="nextPage"
           :disabled="!hasNextPage || loading"
-          class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200'"
         >
           Next
         </button>
       </div>
 
       <!-- Camera count -->
-      <div v-else class="text-xs text-gray-500">
+      <div v-else class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
         {{ totalSize }} camera{{ totalSize !== 1 ? 's' : '' }}
       </div>
     </div>
@@ -361,17 +376,17 @@ onUnmounted(() => {
       class="flex-1 overflow-hidden"
     >
       <!-- Loading State -->
-      <div v-if="loading && cameras.length === 0" class="p-4 text-center text-gray-500">
+      <div v-if="loading && cameras.length === 0" class="p-4 text-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
         <div class="animate-pulse">Loading cameras...</div>
       </div>
 
       <!-- Error State -->
       <div v-else-if="error" class="p-4">
-        <div class="bg-red-50 border border-red-200 rounded p-3">
-          <p class="text-red-600 text-sm">{{ error.message }}</p>
+        <div :class="isDark ? 'bg-red-900/30 border-red-800' : 'bg-red-50 border-red-200'" class="border rounded p-3">
+          <p class="text-red-500 text-sm">{{ error.message }}</p>
           <button
             @click="refresh"
-            class="mt-2 text-sm text-red-700 hover:underline"
+            class="mt-2 text-sm text-red-400 hover:underline"
           >
             Try again
           </button>
@@ -379,7 +394,7 @@ onUnmounted(() => {
       </div>
 
       <!-- No Cameras State -->
-      <div v-else-if="cameras.length === 0 && inaccessibleCameraIds.length === 0" class="p-4 text-center text-gray-500">
+      <div v-else-if="cameras.length === 0 && inaccessibleCameraIds.length === 0" class="p-4 text-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
         <p class="text-sm">No cameras found</p>
       </div>
 
@@ -390,6 +405,7 @@ onUnmounted(() => {
             v-if="item.type === 'camera'"
             :camera="item.camera"
             :selected="item.camera.id === selectedCameraId"
+            :is-dark="isDark"
             @select="handleCameraSelect"
           />
           <ErrorCameraCard

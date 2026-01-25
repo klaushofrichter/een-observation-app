@@ -9,6 +9,7 @@ const props = defineProps<{
   camera: Camera
   playbackMode?: 'live' | 'recorded'
   playbackTimestamp?: string | null
+  isDark?: boolean
 }>()
 
 // Auth store for baseUrl and token
@@ -153,7 +154,6 @@ async function initializeLiveVideo() {
 // Watch for camera changes - stop current player and start new one
 watch(() => props.camera.id, async (newId, oldId) => {
   if (newId !== oldId) {
-    console.log(`Camera changed from ${oldId} to ${newId}`)
     // Stop HLS if playing
     hlsPlayer.resetVideo()
     // Small delay to ensure clean transition
@@ -363,74 +363,77 @@ onUnmounted(() => {
     </div>
 
     <!-- Camera Info Panel -->
-    <div class="w-72 flex-shrink-0 bg-gray-800 rounded-lg p-4 overflow-y-auto">
-      <h3 class="text-white font-semibold text-lg mb-4">Camera Information</h3>
+    <div
+      class="w-72 flex-shrink-0 rounded-lg p-4 overflow-y-auto border"
+      :class="isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'"
+    >
+      <h3 :class="isDark ? 'text-white' : 'text-gray-800'" class="font-semibold text-lg mb-4">Camera Information</h3>
 
       <div class="space-y-4">
         <!-- Status -->
-        <div class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Status</label>
+        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Status</label>
           <div class="flex items-center gap-2 mt-1">
             <span
               class="w-2 h-2 rounded-full"
               :class="statusClass"
             />
-            <span class="text-white text-sm capitalize">{{ statusString || 'Unknown' }}</span>
+            <span :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm capitalize">{{ statusString || 'Unknown' }}</span>
           </div>
         </div>
 
         <!-- Camera Name -->
-        <div class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Name</label>
-          <p class="text-white text-sm mt-1">{{ camera.name }}</p>
+        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Name</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1">{{ camera.name }}</p>
         </div>
 
         <!-- Camera ID -->
-        <div class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Camera ID</label>
-          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.id }}</p>
+        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Camera ID</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.id }}</p>
         </div>
 
         <!-- Account ID -->
-        <div class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Account ID</label>
-          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.accountId }}</p>
+        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Account ID</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.accountId }}</p>
         </div>
 
         <!-- Bridge ID (if available) -->
-        <div v-if="camera.bridgeId" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Bridge ID</label>
-          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.bridgeId }}</p>
+        <div v-if="camera.bridgeId" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Bridge ID</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.bridgeId }}</p>
         </div>
 
         <!-- Location ID (if available) -->
-        <div v-if="camera.locationId" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Location ID</label>
-          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
+        <div v-if="camera.locationId" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Location ID</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
         </div>
 
         <!-- MAC Address (if available) -->
-        <div v-if="camera.macAddress" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">MAC Address</label>
-          <p class="text-white text-sm mt-1 font-mono">{{ camera.macAddress }}</p>
+        <div v-if="camera.macAddress" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">MAC Address</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono">{{ camera.macAddress }}</p>
         </div>
 
         <!-- IP Address (if available) -->
-        <div v-if="camera.ipAddress" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">IP Address</label>
-          <p class="text-white text-sm mt-1 font-mono">{{ camera.ipAddress }}</p>
+        <div v-if="camera.ipAddress" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">IP Address</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono">{{ camera.ipAddress }}</p>
         </div>
 
         <!-- Timezone (if available) -->
-        <div v-if="camera.timezone" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">Timezone</label>
-          <p class="text-white text-sm mt-1">{{ camera.timezone }}</p>
+        <div v-if="camera.timezone" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Timezone</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1">{{ camera.timezone }}</p>
         </div>
 
         <!-- GUID (if available) -->
-        <div v-if="camera.guid" class="info-item">
-          <label class="text-gray-400 text-xs uppercase tracking-wide">GUID</label>
-          <p class="text-white text-sm mt-1 font-mono text-xs break-all">{{ camera.guid }}</p>
+        <div v-if="camera.guid" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">GUID</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.guid }}</p>
         </div>
       </div>
     </div>
@@ -443,8 +446,12 @@ onUnmounted(() => {
 }
 
 .info-item {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   padding-bottom: 0.75rem;
+}
+
+.info-item.info-item-dark {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .info-item:last-child {
