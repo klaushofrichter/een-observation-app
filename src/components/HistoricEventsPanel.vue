@@ -59,9 +59,9 @@ const refreshButtonLabel = computed(() => {
   if (!autoRefresh.value) return 'Refresh'
 
   if (refreshCountdown.value < 60) {
-    return `${refreshCountdown.value}s`
+    return `Refresh in ${refreshCountdown.value}s`
   }
-  return `${Math.ceil(refreshCountdown.value / 60)}m`
+  return `Refresh in ${Math.ceil(refreshCountdown.value / 60)}m`
 })
 
 // Get start timestamp for the time range
@@ -280,7 +280,7 @@ watch(
         <button
           @click="fetchEvents()"
           :disabled="loading"
-          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[60px]"
+          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px]"
           title="Refresh events and move matching Live Events here"
         >
           {{ refreshButtonLabel }}
