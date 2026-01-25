@@ -25,6 +25,10 @@ const nextPageToken = ref<string | undefined>(undefined)
 const eventTypeNames = ref<Map<string, string>>(new Map())
 const hoveredEventId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
+const isAtTop = ref(true)
+
+// Refs
+const eventsContainer = ref<HTMLElement | null>(null)
 
 // Time range options (in minutes)
 const timeRangeOptions = [
@@ -172,6 +176,20 @@ async function loadMore() {
   await fetchEvents(true)
 }
 
+// Handle scroll to detect position
+function handleScroll() {
+  if (!eventsContainer.value) return
+  isAtTop.value = eventsContainer.value.scrollTop < 10
+}
+
+// Scroll to top of list
+function scrollToTop() {
+  if (eventsContainer.value) {
+    eventsContainer.value.scrollTop = 0
+    isAtTop.value = true
+  }
+}
+
 // Initialize event type names
 fetchEventTypeNames()
 
@@ -249,7 +267,12 @@ watch(
     </div>
 
     <!-- Events List -->
-    <div v-else class="flex-1 overflow-y-auto min-h-0 space-y-1">
+    <div
+      v-else
+      ref="eventsContainer"
+      class="flex-1 overflow-y-auto min-h-0 space-y-1"
+      @scroll="handleScroll"
+    >
       <div
         v-for="event in events"
         :key="event.id"
@@ -319,6 +342,15 @@ watch(
     <!-- Event Count -->
     <div v-if="events.length > 0" class="text-xs text-gray-400 mt-1 flex-shrink-0 pt-1 border-t border-gray-100">
       {{ events.length }} event{{ events.length !== 1 ? 's' : '' }}
+    </div>
+
+    <!-- Scroll to top indicator -->
+    <div
+      v-if="events.length > 0 && !isAtTop"
+      class="text-xs text-center text-gray-400 py-1 cursor-pointer hover:text-blue-600"
+      @click="scrollToTop"
+    >
+      Click to scroll to top
     </div>
   </div>
 </template>
