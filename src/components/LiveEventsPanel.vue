@@ -511,7 +511,7 @@ onUnmounted(async () => {
     >
       <!-- Waiting for events -->
       <div v-if="events.length === 0 && isConnected" class="text-xs text-gray-400 text-center py-4">
-        Waiting for events...
+        Waiting for new live events...
       </div>
 
       <!-- Event Items -->
