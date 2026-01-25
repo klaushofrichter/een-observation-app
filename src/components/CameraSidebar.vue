@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getCameras } from 'een-api-toolkit'
-import type { Camera, ListCamerasParams, EenError } from 'een-api-toolkit'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { getCameras, getLayouts } from 'een-api-toolkit'
+import type { Camera, ListCamerasParams, EenError, Layout } from 'een-api-toolkit'
 import CameraCard from './CameraCard.vue'
 
-const props = defineProps<{
+defineProps<{
   selectedCameraId: string | null
 }>()
 
@@ -14,9 +14,15 @@ const emit = defineEmits<{
 
 // Camera data state
 const cameras = ref<Camera[]>([])
+const allCameras = ref<Camera[]>([]) // Store all cameras for filtering
 const loading = ref(false)
 const error = ref<EenError | null>(null)
 const totalSize = ref<number>(0)
+
+// Layout state
+const layouts = ref<Layout[]>([])
+const selectedLayoutId = ref<string>('all') // 'all' = All Cameras
+const loadingLayouts = ref(false)
 
 // Pagination state - using dynamic calculation based on viewport
 const currentPage = ref(1)
@@ -76,15 +82,61 @@ async function fetchCameras(append = false) {
   if (result.error) {
     error.value = result.error
     if (!append) {
+      allCameras.value = []
       cameras.value = []
       totalSize.value = 0
     }
   } else if (result.data) {
-    cameras.value = result.data.results || []
-    totalSize.value = result.data.totalSize || cameras.value.length
+    allCameras.value = result.data.results || []
+    // Apply layout filter
+    applyLayoutFilter()
   }
 
   loading.value = false
+}
+
+// Fetch layouts from API (lazy load)
+async function fetchLayouts() {
+  loadingLayouts.value = true
+
+  const result = await getLayouts({ pageSize: 100 })
+
+  if (!result.error && result.data) {
+    layouts.value = result.data.results || []
+  }
+
+  loadingLayouts.value = false
+}
+
+// Apply layout filter to cameras
+function applyLayoutFilter() {
+  if (selectedLayoutId.value === 'all') {
+    // Show all cameras
+    cameras.value = [...allCameras.value]
+  } else {
+    // Find selected layout and filter cameras
+    const layout = layouts.value.find(l => l.id === selectedLayoutId.value)
+    if (layout) {
+      const cameraIdsInLayout = layout.panes.map(pane => pane.cameraId)
+      cameras.value = allCameras.value.filter(cam => cameraIdsInLayout.includes(cam.id))
+    } else {
+      cameras.value = [...allCameras.value]
+    }
+  }
+  totalSize.value = cameras.value.length
+  currentPage.value = 1 // Reset to first page
+
+  // Auto-select first camera
+  if (cameras.value.length > 0) {
+    emit('select-camera', cameras.value[0])
+  }
+}
+
+// Handle layout selection change
+function handleLayoutChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  selectedLayoutId.value = target.value
+  applyLayoutFilter()
 }
 
 // Pagination navigation
@@ -130,6 +182,9 @@ let resizeObserver: ResizeObserver | null = null
 onMounted(async () => {
   await fetchCameras()
 
+  // Lazy load layouts after cameras are shown
+  fetchLayouts()
+
   // Set up resize observer
   if (cardContainerRef.value) {
     camerasPerPage.value = calculateCardsPerPage()
@@ -148,21 +203,30 @@ onUnmounted(() => {
   }
   window.removeEventListener('resize', handleResize)
 })
-
-// Auto-select first camera if none selected
-watch(cameras, (newCameras) => {
-  if (newCameras.length > 0 && !props.selectedCameraId) {
-    emit('select-camera', newCameras[0])
-  }
-}, { immediate: true })
 </script>
 
 <template>
   <div class="camera-sidebar h-full flex flex-col bg-gray-50 border-r border-gray-200">
-    <!-- Header with Pagination Controls -->
+    <!-- Header with Layout Selector and Pagination Controls -->
     <div class="sidebar-header px-3 py-2 bg-white border-b border-gray-200">
       <div class="flex items-center justify-between mb-2">
-        <h2 class="text-sm font-semibold text-gray-700">Cameras</h2>
+        <!-- Layout Dropdown -->
+        <select
+          :value="selectedLayoutId"
+          @change="handleLayoutChange"
+          :disabled="loadingLayouts"
+          class="text-sm font-semibold text-gray-700 bg-transparent border-none cursor-pointer hover:text-gray-900 focus:outline-none focus:ring-0 pr-6 -ml-1 max-w-[160px] truncate"
+          title="Select layout"
+        >
+          <option value="all">All Cameras</option>
+          <option
+            v-for="layout in layouts"
+            :key="layout.id"
+            :value="layout.id"
+          >
+            {{ layout.name }}
+          </option>
+        </select>
         <button
           @click="refresh"
           :disabled="loading"
