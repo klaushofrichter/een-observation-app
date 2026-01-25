@@ -39,7 +39,9 @@ const hoveredEventId = ref<string | null>(null)
 // Reconnection timer (SSE subscriptions expire after 15 minutes)
 const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes (before 15 min expiry)
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isProactiveReconnecting = false // Flag to prevent double-reconnection
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
+const isAtBottom = ref(false) // Track if scrolled to bottom
 
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
@@ -177,7 +179,10 @@ function startReconnectTimer() {
 
 // Reconnect without clearing events
 async function reconnect() {
-  console.log('[SSE] Reconnecting...')
+  console.log('[SSE] Reconnecting (proactive)...')
+
+  // Set flag to prevent handleStatusChange from triggering another connect
+  isProactiveReconnecting = true
 
   // Close existing connection
   if (sseConnection.value) {
@@ -194,6 +199,9 @@ async function reconnect() {
 
   // Create new subscription (don't clear events)
   await connectWithoutClearingEvents()
+
+  // Clear the flag
+  isProactiveReconnecting = false
 }
 
 // Handle status change
@@ -210,12 +218,18 @@ function handleStatusChange(status: SSEConnectionStatus) {
       sseConnection.value = null
     }
 
+    // Skip auto-reconnect if we're doing a proactive reconnection
+    if (isProactiveReconnecting) {
+      console.log('[SSE] Proactive reconnection in progress, skipping auto-reconnect')
+      return
+    }
+
     // Auto-reconnect if enabled and we have camera/types
     if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
       console.log('[SSE] Auto-reconnect enabled, will reconnect in 2 seconds...')
       // Small delay before reconnecting
       setTimeout(() => {
-        if (autoReconnect.value && !isConnected.value && !isConnecting.value) {
+        if (autoReconnect.value && !isConnected.value && !isConnecting.value && !isProactiveReconnecting) {
           console.log('[SSE] Executing auto-reconnect')
           connect()
         }
@@ -360,13 +374,19 @@ defineExpose({
   removeEventsByTimestamps
 })
 
-// Handle scroll to detect manual scrolling
+// Handle scroll to detect manual scrolling and bottom position
 function handleScroll() {
   if (!eventsContainer.value) return
 
+  const container = eventsContainer.value
+
   // If user scrolls down (away from top), disable auto-scroll
   // If user scrolls back to top, re-enable auto-scroll
-  autoScroll.value = eventsContainer.value.scrollTop < 10
+  autoScroll.value = container.scrollTop < 10
+
+  // Check if at bottom (within 20px threshold)
+  const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 20
+  isAtBottom.value = atBottom && events.value.length >= MAX_EVENTS
 }
 
 // Fetch event type names on mount
@@ -571,6 +591,14 @@ onUnmounted(async () => {
       @click="autoScroll = true; scrollToTop()"
     >
       Click to resume auto-scroll
+    </div>
+
+    <!-- At bottom / max events indicator -->
+    <div
+      v-if="isAtBottom"
+      class="text-xs text-center text-orange-500 py-1 bg-orange-50 rounded"
+    >
+      Reached max events. Refresh Historic Events to archive.
     </div>
   </div>
 </template>
