@@ -411,7 +411,7 @@ onUnmounted(async () => {
           </div>
           <div class="text-xs text-gray-400 flex justify-between">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
-            <span class="text-gray-300">{{ formatAge(event.startTimestamp) }}</span>
+            <span class="text-gray-700">{{ formatAge(event.startTimestamp) }}</span>
           </div>
         </div>
       </div>
