@@ -30,20 +30,41 @@ const error = ref<EenError | null>(null)
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
+// Playback state - when an event is clicked, switch from live to recorded playback
+const playbackMode = ref<'live' | 'recorded'>('live')
+const playbackTimestamp = ref<string | null>(null)
+
 // Computed selected camera ID for sidebar
 const selectedCameraId = computed(() => selectedCamera.value?.id || null)
 
-// Handle camera selection from sidebar
+// Handle camera selection from sidebar - reset to live mode
 function handleCameraSelect(camera: Camera) {
   selectedCamera.value = camera
+  // Reset to live mode when a camera is selected
+  playbackMode.value = 'live'
+  playbackTimestamp.value = null
+}
+
+// Handle event click - switch to recorded playback
+function handleEventClick(event: { cameraId: string; timestamp: string }) {
+  playbackMode.value = 'recorded'
+  playbackTimestamp.value = event.timestamp
 }
 
 // Selected event types state (shared between panels)
 const selectedEventTypes = ref<string[]>([])
 
+// Reference to LiveEventsPanel for cross-panel communication
+const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
+
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
   selectedEventTypes.value = types
+}
+
+// Handle historic events refresh - remove duplicates from live events
+function handleHistoricEventsRefreshed(eventTimestamps: string[]) {
+  liveEventsPanelRef.value?.removeEventsByTimestamps(eventTimestamps)
 }
 
 onMounted(async () => {
@@ -89,21 +110,12 @@ onMounted(async () => {
       <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Video Section (Top) -->
         <div class="flex-1 min-h-0 bg-gray-900 p-4">
-          <div v-if="selectedCamera" class="h-full flex flex-col">
-            <!-- Camera Title -->
-            <div class="flex items-center justify-between mb-3">
-              <h2 class="text-lg font-semibold text-white">
-                {{ selectedCamera.name }}
-              </h2>
-              <span class="text-sm text-gray-400">
-                ID: {{ selectedCamera.id }}
-              </span>
-            </div>
-
-            <!-- HD Video Player -->
-            <div class="flex-1 min-h-0">
-              <MainVideoPlayer :camera="selectedCamera" />
-            </div>
+          <div v-if="selectedCamera" class="h-full">
+            <MainVideoPlayer
+              :camera="selectedCamera"
+              :playback-mode="playbackMode"
+              :playback-timestamp="playbackTimestamp"
+            />
           </div>
 
           <!-- No Camera Selected -->
@@ -143,14 +155,18 @@ onMounted(async () => {
               <HistoricEventsPanel
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                @events-refreshed="handleHistoricEventsRefreshed"
+                @event-clicked="handleEventClick"
               />
             </div>
 
             <!-- Live SSE Events Panel -->
             <div class="flex-1 p-3">
               <LiveEventsPanel
+                ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                @event-clicked="handleEventClick"
               />
             </div>
           </div>

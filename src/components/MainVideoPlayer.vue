@@ -3,13 +3,22 @@ import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useAuthStore } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
+import { useHlsPlayer } from '@/composables/useHlsPlayer'
 
 const props = defineProps<{
   camera: Camera
+  playbackMode?: 'live' | 'recorded'
+  playbackTimestamp?: string | null
 }>()
 
 // Auth store for baseUrl and token
 const authStore = useAuthStore()
+
+// HLS player for recorded playback
+const hlsPlayer = useHlsPlayer()
+
+// Computed: is live mode active
+const isLiveMode = computed(() => props.playbackMode !== 'recorded')
 
 // Video element reference
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -145,19 +154,41 @@ async function initializeLiveVideo() {
 watch(() => props.camera.id, async (newId, oldId) => {
   if (newId !== oldId) {
     console.log(`Camera changed from ${oldId} to ${newId}`)
+    // Stop HLS if playing
+    hlsPlayer.resetVideo()
     // Small delay to ensure clean transition
+    await new Promise(resolve => setTimeout(resolve, 100))
+    if (isLiveMode.value) {
+      initializeLiveVideo()
+    }
+  }
+})
+
+// Watch for playback mode changes
+watch([() => props.playbackMode, () => props.playbackTimestamp], async ([newMode, newTimestamp], [oldMode]) => {
+  if (newMode === 'recorded' && newTimestamp) {
+    // Switch to HLS playback
+    stopLivePlayer()
+    await nextTick()
+    await hlsPlayer.loadVideo(props.camera.id, newTimestamp)
+  } else if (newMode === 'live' && oldMode === 'recorded') {
+    // Switch back to live
+    hlsPlayer.resetVideo()
     await new Promise(resolve => setTimeout(resolve, 100))
     initializeLiveVideo()
   }
 })
 
 onMounted(() => {
-  initializeLiveVideo()
+  if (isLiveMode.value) {
+    initializeLiveVideo()
+  }
 })
 
 onUnmounted(() => {
   isMounted.value = false
   stopLivePlayer()
+  hlsPlayer.destroyHls()
 })
 </script>
 
@@ -165,87 +196,170 @@ onUnmounted(() => {
   <div class="main-video-player h-full flex gap-4" :data-camera-id="camera.id">
     <!-- Video Container -->
     <div class="flex-1 min-w-0 relative bg-gray-900 rounded-lg overflow-hidden">
-      <!-- Loading Overlay - shown on top of video element -->
-      <div
-        v-if="loading"
-        class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
-      >
-        <div class="text-center">
-          <svg
-            class="w-12 h-12 mx-auto text-gray-500 animate-spin"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
+      <!-- LIVE MODE -->
+      <template v-if="isLiveMode">
+        <!-- Loading Overlay - shown on top of video element -->
+        <div
+          v-if="loading"
+          class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+        >
+          <div class="text-center">
+            <svg
+              class="w-12 h-12 mx-auto text-gray-500 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <p class="mt-3 text-gray-400 text-sm">Loading HD stream...</p>
+          </div>
+        </div>
+
+        <!-- Error Overlay - shown on top of video element -->
+        <div
+          v-if="error && !loading"
+          class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+        >
+          <div class="text-center">
+            <svg
+              class="w-16 h-16 mx-auto text-gray-500 mb-3"
+              fill="none"
               stroke="currentColor"
-              stroke-width="4"
-            />
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-          <p class="mt-3 text-gray-400 text-sm">Loading HD stream...</p>
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <p class="text-gray-400 text-sm">{{ error }}</p>
+            <button
+              @click="initializeLiveVideo"
+              class="mt-4 px-4 py-2 bg-een-accent text-white rounded-lg hover:bg-een-accent-dark transition-colors text-sm"
+            >
+              Retry
+            </button>
+          </div>
         </div>
-      </div>
 
-      <!-- Error Overlay - shown on top of video element -->
-      <div
-        v-if="error && !loading"
-        class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
-      >
-        <div class="text-center">
-          <svg
-            class="w-16 h-16 mx-auto text-gray-500 mb-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-          <p class="text-gray-400 text-sm">{{ error }}</p>
-          <button
-            @click="initializeLiveVideo"
-            class="mt-4 px-4 py-2 bg-een-accent text-white rounded-lg hover:bg-een-accent-dark transition-colors text-sm"
-          >
-            Retry
-          </button>
+        <!-- Video Element - ALWAYS rendered in DOM, visibility controlled by CSS -->
+        <div
+          class="video-wrapper w-full h-full"
+          :class="{ 'video-hidden': loading || error }"
+        >
+          <video
+            ref="videoRef"
+            :alt="camera.name"
+            class="w-full h-full object-contain"
+            autoplay
+            muted
+            playsinline
+          />
         </div>
-      </div>
 
-      <!-- Video Element - ALWAYS rendered in DOM, visibility controlled by CSS -->
-      <div
-        class="video-wrapper w-full h-full"
-        :class="{ 'video-hidden': loading || error }"
-      >
-        <video
-          ref="videoRef"
-          :alt="camera.name"
-          class="w-full h-full object-contain"
-          autoplay
-          muted
-          playsinline
-        />
-      </div>
+        <!-- Live Badge -->
+        <div
+          v-if="isStreaming && !loading && !error"
+          class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
+        >
+          <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <span class="text-white text-xs font-medium">LIVE HD</span>
+        </div>
+      </template>
 
-      <!-- Live Badge -->
-      <div
-        v-if="isStreaming && !loading && !error"
-        class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
-      >
-        <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-        <span class="text-white text-xs font-medium">LIVE HD</span>
-      </div>
+      <!-- RECORDED/HLS MODE -->
+      <template v-else>
+        <!-- Loading Overlay for HLS -->
+        <div
+          v-if="hlsPlayer.loadingVideo.value"
+          class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+        >
+          <div class="text-center">
+            <svg
+              class="w-12 h-12 mx-auto text-gray-500 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <p class="mt-3 text-gray-400 text-sm">Loading recorded video...</p>
+          </div>
+        </div>
+
+        <!-- Error Overlay for HLS -->
+        <div
+          v-if="hlsPlayer.videoError.value && !hlsPlayer.loadingVideo.value"
+          class="absolute inset-0 flex items-center justify-center bg-gray-800 z-10"
+        >
+          <div class="text-center">
+            <svg
+              class="w-16 h-16 mx-auto text-gray-500 mb-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <p class="text-gray-400 text-sm">{{ hlsPlayer.videoError.value }}</p>
+          </div>
+        </div>
+
+        <!-- HLS Video Element -->
+        <div
+          class="video-wrapper w-full h-full"
+          :class="{ 'video-hidden': hlsPlayer.loadingVideo.value || hlsPlayer.videoError.value }"
+        >
+          <video
+            :ref="(el) => hlsPlayer.videoRef.value = el as HTMLVideoElement | null"
+            :alt="camera.name"
+            class="w-full h-full object-contain"
+            controls
+            autoplay
+            muted
+            playsinline
+          />
+        </div>
+
+        <!-- Recorded Badge -->
+        <div
+          v-if="hlsPlayer.videoUrl.value && !hlsPlayer.loadingVideo.value && !hlsPlayer.videoError.value"
+          class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
+        >
+          <span class="w-2 h-2 bg-orange-500 rounded-full" />
+          <span class="text-white text-xs font-medium">RECORDED</span>
+        </div>
+      </template>
     </div>
 
     <!-- Camera Info Panel -->
