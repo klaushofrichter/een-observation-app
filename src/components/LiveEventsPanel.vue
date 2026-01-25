@@ -7,11 +7,15 @@ import {
   listEventTypes
 } from 'een-api-toolkit'
 import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus } from 'een-api-toolkit'
+import { useImageCache } from '@/composables/useImageCache'
 
 const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
 }>()
+
+// Use shared image cache
+const { loadImage, getImage, clearImages } = useImageCache()
 
 // State
 const subscriptionId = ref<string | null>(null)
@@ -21,6 +25,8 @@ const connectionError = ref<EenError | null>(null)
 const events = ref<SSEEvent[]>([])
 const eventTypeNames = ref<Map<string, string>>(new Map())
 const autoScroll = ref(true)
+const hoveredEventId = ref<string | null>(null)
+const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
@@ -81,6 +87,11 @@ function handleEvent(event: SSEEvent) {
   // Add event to the beginning (newest first)
   events.value.unshift(event)
 
+  // Load thumbnail for the event
+  if (event.actorType === 'camera') {
+    loadImage(event.id, event.actorId, event.startTimestamp)
+  }
+
   // Trim to max events
   if (events.value.length > MAX_EVENTS) {
     events.value = events.value.slice(0, MAX_EVENTS)
@@ -90,6 +101,28 @@ function handleEvent(event: SSEEvent) {
   nextTick(() => {
     scrollToTop()
   })
+}
+
+// Get image for an event
+function getEventImage(event: SSEEvent): string | null {
+  return getImage(event.id)
+}
+
+// Handle thumbnail hover - capture position for popup
+function handleThumbnailHover(event: SSEEvent, mouseEvent: MouseEvent) {
+  hoveredEventId.value = event.id
+  const target = mouseEvent.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  hoverPosition.value = {
+    bottom: rect.bottom, // Align bottom of preview with bottom of thumbnail
+    right: rect.left - 10 // Position preview 10px to the left of thumbnail
+  }
+}
+
+// Clear hover state
+function clearHover() {
+  hoveredEventId.value = null
+  hoverPosition.value = null
 }
 
 // Handle status change
@@ -188,7 +221,20 @@ async function disconnect() {
 // Clear events
 function clearEvents() {
   events.value = []
+  clearImages()
 }
+
+// Remove events by timestamps (called when historic events are refreshed)
+function removeEventsByTimestamps(timestampsToRemove: string[]) {
+  if (timestampsToRemove.length === 0) return
+  const timestampsSet = new Set(timestampsToRemove)
+  events.value = events.value.filter(event => !timestampsSet.has(event.startTimestamp))
+}
+
+// Expose methods to parent
+defineExpose({
+  removeEventsByTimestamps
+})
 
 // Handle scroll to detect manual scrolling
 function handleScroll() {
@@ -202,19 +248,22 @@ function handleScroll() {
 // Fetch event type names on mount
 fetchEventTypeNames()
 
-// Watch for camera or selected types changes - disconnect if they change
+// Watch for camera or selected types changes - reconnect automatically
 watch(
   [() => props.camera?.id, () => props.selectedTypes],
   async ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
-    // If connected and camera or types changed, disconnect
-    if (isConnected.value || isConnecting.value) {
-      // Check if camera changed or types changed
-      const cameraChanged = newCameraId !== oldCameraId
-      const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
+    const cameraChanged = newCameraId !== oldCameraId
+    const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
+    const wasConnected = isConnected.value || isConnecting.value
 
-      if (cameraChanged || typesChanged) {
-        await disconnect()
-      }
+    // If camera or types changed, disconnect first
+    if (wasConnected && (cameraChanged || typesChanged)) {
+      await disconnect()
+    }
+
+    // Auto-connect when camera or event types change (if we have a camera and event types)
+    if ((cameraChanged || typesChanged) && newCameraId && newTypes && newTypes.length > 0) {
+      await connect()
     }
   },
   { deep: true }
@@ -317,8 +366,27 @@ onUnmounted(async () => {
       <div
         v-for="event in events"
         :key="event.id"
-        class="flex items-center gap-2 p-1.5 bg-blue-50 rounded border-l-2 border-blue-400 animate-fade-in"
+        class="relative flex items-center gap-2 p-1.5 bg-blue-50 rounded border-l-2 border-blue-400 animate-fade-in"
       >
+        <!-- Thumbnail -->
+        <div
+          class="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0"
+          @mouseenter="handleThumbnailHover(event, $event)"
+          @mouseleave="clearHover"
+        >
+          <img
+            v-if="getEventImage(event)"
+            :src="getEventImage(event) || ''"
+            :alt="event.type"
+            class="w-full h-full object-cover cursor-pointer"
+          />
+          <div v-else class="w-full h-full flex items-center justify-center">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        </div>
+
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
           <div class="text-xs font-medium text-gray-700 truncate">
@@ -328,12 +396,26 @@ onUnmounted(async () => {
             {{ formatTimestamp(event.startTimestamp) }}
           </div>
         </div>
-
-        <!-- Live Badge -->
-        <span class="text-xs bg-green-100 text-green-700 px-1 py-0.5 rounded font-medium flex-shrink-0">
-          LIVE
-        </span>
       </div>
+
+      <!-- Hover preview popup (teleported to body, positioned to the left of thumbnail) -->
+      <Teleport to="body">
+        <div
+          v-if="hoveredEventId && hoverPosition && getImage(hoveredEventId)"
+          class="fixed z-[9999] bg-white rounded-lg shadow-xl border border-gray-200 p-2 pointer-events-none"
+          :style="{
+            top: hoverPosition.bottom + 'px',
+            left: hoverPosition.right + 'px',
+            transform: 'translateX(-100%) translateY(-100%)'
+          }"
+        >
+          <img
+            :src="getImage(hoveredEventId) || ''"
+            alt="Event preview"
+            class="max-w-[384px] h-auto rounded"
+          />
+        </div>
+      </Teleport>
     </div>
 
     <!-- Footer -->

@@ -41,9 +41,17 @@ function handleCameraSelect(camera: Camera) {
 // Selected event types state (shared between panels)
 const selectedEventTypes = ref<string[]>([])
 
+// Reference to LiveEventsPanel for cross-panel communication
+const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
+
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
   selectedEventTypes.value = types
+}
+
+// Handle historic events refresh - remove duplicates from live events
+function handleHistoricEventsRefreshed(eventTimestamps: string[]) {
+  liveEventsPanelRef.value?.removeEventsByTimestamps(eventTimestamps)
 }
 
 onMounted(async () => {
@@ -89,21 +97,8 @@ onMounted(async () => {
       <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Video Section (Top) -->
         <div class="flex-1 min-h-0 bg-gray-900 p-4">
-          <div v-if="selectedCamera" class="h-full flex flex-col">
-            <!-- Camera Title -->
-            <div class="flex items-center justify-between mb-3">
-              <h2 class="text-lg font-semibold text-white">
-                {{ selectedCamera.name }}
-              </h2>
-              <span class="text-sm text-gray-400">
-                ID: {{ selectedCamera.id }}
-              </span>
-            </div>
-
-            <!-- HD Video Player -->
-            <div class="flex-1 min-h-0">
-              <MainVideoPlayer :camera="selectedCamera" />
-            </div>
+          <div v-if="selectedCamera" class="h-full">
+            <MainVideoPlayer :camera="selectedCamera" />
           </div>
 
           <!-- No Camera Selected -->
@@ -143,12 +138,14 @@ onMounted(async () => {
               <HistoricEventsPanel
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                @events-refreshed="handleHistoricEventsRefreshed"
               />
             </div>
 
             <!-- Live SSE Events Panel -->
             <div class="flex-1 p-3">
               <LiveEventsPanel
+                ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
               />

@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { listEvents, listEventTypes, getRecordedImage } from 'een-api-toolkit'
+import { listEvents, listEventTypes } from 'een-api-toolkit'
 import type { Camera, Event, EenError } from 'een-api-toolkit'
+import { useImageCache } from '@/composables/useImageCache'
 
 const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
 }>()
+
+const emit = defineEmits<{
+  (e: 'events-refreshed', eventTimestamps: string[]): void
+}>()
+
+// Use shared image cache
+const { loadImage, getImage, clearImages } = useImageCache()
 
 // State
 const loading = ref(false)
@@ -14,11 +22,17 @@ const error = ref<EenError | null>(null)
 const events = ref<Event[]>([])
 const nextPageToken = ref<string | undefined>(undefined)
 const eventTypeNames = ref<Map<string, string>>(new Map())
-const eventImages = ref<Map<string, string>>(new Map())
-const loadingImages = ref<Set<string>>(new Set())
+const hoveredEventId = ref<string | null>(null)
+const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 
-// Time range for historic events (last 1 hour)
-const TIME_RANGE_HOURS = 1
+// Time range options (in minutes)
+const timeRangeOptions = [
+  { label: 'Last 10 min', value: 10 },
+  { label: 'Last 1h', value: 60 },
+  { label: 'Last 24h', value: 60 * 24 },
+  { label: 'Last week', value: 60 * 24 * 7 }
+]
+const selectedTimeRange = ref(60) // Default: 1 hour
 
 // Computed
 const hasMoreEvents = computed(() => !!nextPageToken.value)
@@ -27,7 +41,7 @@ const hasNoEvents = computed(() => !loading.value && events.value.length === 0 &
 // Get start timestamp for the time range
 function getStartTimestamp(): string {
   const now = Date.now()
-  return new Date(now - TIME_RANGE_HOURS * 60 * 60 * 1000).toISOString()
+  return new Date(now - selectedTimeRange.value * 60 * 1000).toISOString()
 }
 
 // Fetch event type display names
@@ -100,7 +114,9 @@ async function fetchEvents(append = false) {
       events.value = [...events.value, ...newEvents]
     } else {
       events.value = newEvents
-      eventImages.value.clear()
+      clearImages()
+      // Emit event timestamps so live events can filter out duplicates
+      emit('events-refreshed', newEvents.map(e => e.startTimestamp))
     }
     nextPageToken.value = result.data.nextPageToken
 
@@ -115,30 +131,30 @@ async function fetchEvents(append = false) {
 async function loadEventImages(eventsToLoad: Event[]) {
   for (const event of eventsToLoad) {
     if (event.actorType !== 'camera') continue
-    if (eventImages.value.has(event.id)) continue
-    if (loadingImages.value.has(event.id)) continue
-
-    loadingImages.value.add(event.id)
-
-    try {
-      const result = await getRecordedImage({
-        deviceId: event.actorId,
-        type: 'preview',
-        timestamp__gte: event.startTimestamp
-      })
-
-      if (!result.error && result.data) {
-        eventImages.value.set(event.id, result.data.imageData)
-      }
-    } finally {
-      loadingImages.value.delete(event.id)
-    }
+    loadImage(event.id, event.actorId, event.startTimestamp)
   }
 }
 
 // Get image for an event
 function getEventImage(event: Event): string | null {
-  return eventImages.value.get(event.id) || null
+  return getImage(event.id)
+}
+
+// Handle thumbnail hover - capture position for popup
+function handleThumbnailHover(event: Event, mouseEvent: MouseEvent) {
+  hoveredEventId.value = event.id
+  const target = mouseEvent.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  hoverPosition.value = {
+    bottom: rect.bottom, // Align bottom of preview with bottom of thumbnail
+    right: rect.left - 10 // Position preview 10px to the left of thumbnail
+  }
+}
+
+// Clear hover state
+function clearHover() {
+  hoveredEventId.value = null
+  hoverPosition.value = null
 }
 
 // Load more events
@@ -150,9 +166,9 @@ async function loadMore() {
 // Initialize event type names
 fetchEventTypeNames()
 
-// Watch for camera or selected types changes
+// Watch for camera, selected types, or time range changes
 watch(
-  [() => props.camera?.id, () => props.selectedTypes],
+  [() => props.camera?.id, () => props.selectedTypes, selectedTimeRange],
   () => {
     fetchEvents()
   },
@@ -164,7 +180,24 @@ watch(
   <div class="historic-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold text-gray-700">Historic Events</h3>
-      <span class="text-xs text-gray-400">Last {{ TIME_RANGE_HOURS }}h</span>
+      <div class="flex items-center gap-2">
+        <select
+          v-model="selectedTimeRange"
+          class="text-xs text-gray-600 bg-white border border-gray-300 rounded px-1 py-0.5 hover:border-gray-400 focus:outline-none focus:border-blue-500 cursor-pointer"
+        >
+          <option v-for="option in timeRangeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+        <button
+          @click="fetchEvents()"
+          :disabled="loading"
+          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Refresh events and move matching Live Events here"
+        >
+          {{ loading ? 'Loading...' : 'Refresh' }}
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -211,15 +244,19 @@ watch(
       <div
         v-for="event in events"
         :key="event.id"
-        class="flex items-center gap-2 p-1.5 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+        class="relative flex items-center gap-2 p-1.5 bg-green-50 rounded hover:bg-green-100 transition-colors"
       >
         <!-- Thumbnail -->
-        <div class="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0">
+        <div
+          class="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0"
+          @mouseenter="handleThumbnailHover(event, $event)"
+          @mouseleave="clearHover"
+        >
           <img
             v-if="getEventImage(event)"
             :src="getEventImage(event) || ''"
             :alt="event.type"
-            class="w-full h-full object-cover"
+            class="w-full h-full object-cover cursor-pointer"
           />
           <div v-else class="w-full h-full flex items-center justify-center">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,6 +275,25 @@ watch(
           </div>
         </div>
       </div>
+
+      <!-- Hover preview popup (teleported to body, positioned to the left of thumbnail) -->
+      <Teleport to="body">
+        <div
+          v-if="hoveredEventId && hoverPosition && getImage(hoveredEventId)"
+          class="fixed z-[9999] bg-white rounded-lg shadow-xl border border-gray-200 p-2 pointer-events-none"
+          :style="{
+            top: hoverPosition.bottom + 'px',
+            left: hoverPosition.right + 'px',
+            transform: 'translateX(-100%) translateY(-100%)'
+          }"
+        >
+          <img
+            :src="getImage(hoveredEventId) || ''"
+            alt="Event preview"
+            class="max-w-[384px] h-auto rounded"
+          />
+        </div>
+      </Teleport>
 
       <!-- Load More Button -->
       <button
