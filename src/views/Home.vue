@@ -30,12 +30,25 @@ const error = ref<EenError | null>(null)
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
+// Playback state - when an event is clicked, switch from live to recorded playback
+const playbackMode = ref<'live' | 'recorded'>('live')
+const playbackTimestamp = ref<string | null>(null)
+
 // Computed selected camera ID for sidebar
 const selectedCameraId = computed(() => selectedCamera.value?.id || null)
 
-// Handle camera selection from sidebar
+// Handle camera selection from sidebar - reset to live mode
 function handleCameraSelect(camera: Camera) {
   selectedCamera.value = camera
+  // Reset to live mode when a camera is selected
+  playbackMode.value = 'live'
+  playbackTimestamp.value = null
+}
+
+// Handle event click - switch to recorded playback
+function handleEventClick(event: { cameraId: string; timestamp: string }) {
+  playbackMode.value = 'recorded'
+  playbackTimestamp.value = event.timestamp
 }
 
 // Selected event types state (shared between panels)
@@ -98,7 +111,11 @@ onMounted(async () => {
         <!-- Video Section (Top) -->
         <div class="flex-1 min-h-0 bg-gray-900 p-4">
           <div v-if="selectedCamera" class="h-full">
-            <MainVideoPlayer :camera="selectedCamera" />
+            <MainVideoPlayer
+              :camera="selectedCamera"
+              :playback-mode="playbackMode"
+              :playback-timestamp="playbackTimestamp"
+            />
           </div>
 
           <!-- No Camera Selected -->
@@ -139,6 +156,7 @@ onMounted(async () => {
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 @events-refreshed="handleHistoricEventsRefreshed"
+                @event-clicked="handleEventClick"
               />
             </div>
 
@@ -148,6 +166,7 @@ onMounted(async () => {
                 ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
+                @event-clicked="handleEventClick"
               />
             </div>
           </div>

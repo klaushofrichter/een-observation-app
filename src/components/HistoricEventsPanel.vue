@@ -11,6 +11,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'events-refreshed', eventTimestamps: string[]): void
+  (e: 'event-clicked', event: { cameraId: string; timestamp: string }): void
 }>()
 
 // Use shared image cache
@@ -157,6 +158,14 @@ function clearHover() {
   hoverPosition.value = null
 }
 
+// Handle event card click - emit event for playback
+function handleEventClick(event: Event) {
+  emit('event-clicked', {
+    cameraId: event.actorId,
+    timestamp: event.startTimestamp
+  })
+}
+
 // Load more events
 async function loadMore() {
   if (!nextPageToken.value) return
@@ -244,7 +253,8 @@ watch(
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 bg-green-50 rounded hover:bg-green-100 transition-colors"
+        class="relative flex items-center gap-2 p-1.5 bg-green-50 rounded hover:bg-green-100 transition-colors cursor-pointer"
+        @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->
         <div

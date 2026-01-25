@@ -14,6 +14,10 @@ const props = defineProps<{
   selectedTypes: string[]
 }>()
 
+const emit = defineEmits<{
+  (e: 'event-clicked', event: { cameraId: string; timestamp: string }): void
+}>()
+
 // Use shared image cache
 const { loadImage, getImage, clearImages } = useImageCache()
 
@@ -123,6 +127,14 @@ function handleThumbnailHover(event: SSEEvent, mouseEvent: MouseEvent) {
 function clearHover() {
   hoveredEventId.value = null
   hoverPosition.value = null
+}
+
+// Handle event card click - emit event for playback
+function handleEventClick(event: SSEEvent) {
+  emit('event-clicked', {
+    cameraId: event.actorId,
+    timestamp: event.startTimestamp
+  })
 }
 
 // Handle status change
@@ -366,7 +378,8 @@ onUnmounted(async () => {
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 bg-blue-50 rounded border-l-2 border-blue-400 animate-fade-in"
+        class="relative flex items-center gap-2 p-1.5 bg-blue-50 rounded border-l-2 border-blue-400 animate-fade-in cursor-pointer"
+        @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->
         <div
