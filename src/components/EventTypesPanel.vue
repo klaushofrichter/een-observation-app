@@ -5,6 +5,7 @@ import type { Camera, EenError } from 'een-api-toolkit'
 
 const props = defineProps<{
   camera: Camera | null
+  isDark?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -141,11 +142,11 @@ watch(() => props.camera?.id, () => {
 
 <template>
   <div class="event-types-panel h-full flex flex-col">
-    <h3 class="text-sm font-semibold text-gray-700 mb-2 flex-shrink-0">Event Types</h3>
+    <h3 class="text-sm font-semibold mb-2 flex-shrink-0" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Event Types</h3>
 
     <!-- Loading State -->
-    <div v-if="loading" class="text-xs text-gray-500 flex items-center">
-      <svg class="animate-spin h-3 w-3 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24">
+    <div v-if="loading" class="text-xs flex items-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+      <svg class="animate-spin h-3 w-3 mr-1" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
@@ -153,7 +154,7 @@ watch(() => props.camera?.id, () => {
     </div>
 
     <!-- No Camera Selected -->
-    <div v-else-if="!camera" class="text-xs text-gray-400">
+    <div v-else-if="!camera" class="text-xs" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
       Select a camera to view event types
     </div>
 
@@ -163,14 +164,17 @@ watch(() => props.camera?.id, () => {
     </div>
 
     <!-- No Event Types -->
-    <div v-else-if="availableEventTypes.length === 0" class="text-xs text-gray-400">
+    <div v-else-if="availableEventTypes.length === 0" class="text-xs" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
       No event types available
     </div>
 
     <!-- Event Type List -->
     <div v-else class="flex-1 overflow-y-auto min-h-0">
       <!-- Select All -->
-      <label class="flex items-center gap-1.5 py-1 px-1 hover:bg-gray-50 rounded cursor-pointer border-b border-gray-100 mb-1">
+      <label
+        class="flex items-center gap-1.5 py-1 px-1 rounded cursor-pointer border-b mb-1"
+        :class="isDark ? 'hover:bg-gray-700 border-gray-700' : 'hover:bg-gray-50 border-gray-100'"
+      >
         <input
           type="checkbox"
           :checked="allSelected"
@@ -178,14 +182,15 @@ watch(() => props.camera?.id, () => {
           @change="toggleAll"
           class="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500 focus:ring-1"
         />
-        <span class="text-xs font-medium text-gray-600">All</span>
+        <span class="text-xs font-medium" :class="isDark ? 'text-gray-300' : 'text-gray-600'">All</span>
       </label>
 
       <!-- Individual Event Types -->
       <label
         v-for="eventType in availableEventTypes"
         :key="eventType"
-        class="flex items-center gap-1.5 py-1 px-1 hover:bg-gray-50 rounded cursor-pointer"
+        class="flex items-center gap-1.5 py-1 px-1 rounded cursor-pointer"
+        :class="isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'"
         :title="getEventTypeName(eventType)"
       >
         <input
@@ -194,14 +199,14 @@ watch(() => props.camera?.id, () => {
           @change="toggleEventType(eventType)"
           class="w-3 h-3 text-blue-600 rounded border-gray-300 focus:ring-blue-500 focus:ring-1"
         />
-        <span class="text-xs text-gray-700 truncate">
+        <span class="text-xs truncate" :class="isDark ? 'text-gray-300' : 'text-gray-700'">
           {{ getShortEventTypeName(eventType) }}
         </span>
       </label>
     </div>
 
     <!-- Selection Count -->
-    <div v-if="availableEventTypes.length > 0" class="text-xs text-gray-400 mt-1 flex-shrink-0 pt-1 border-t border-gray-100">
+    <div v-if="availableEventTypes.length > 0" class="text-xs mt-1 flex-shrink-0 pt-1 border-t" :class="isDark ? 'text-gray-500 border-gray-700' : 'text-gray-400 border-gray-100'">
       {{ selectedEventTypes.length }}/{{ availableEventTypes.length }} selected
     </div>
   </div>

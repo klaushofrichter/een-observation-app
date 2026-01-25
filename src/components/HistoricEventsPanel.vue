@@ -8,6 +8,7 @@ import { useEventAge } from '@/composables/useEventAge'
 const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
+  isDark?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -267,11 +268,12 @@ watch(
 <template>
   <div class="historic-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
-      <h3 class="text-sm font-semibold text-gray-700">Historic Events</h3>
+      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Historic Events</h3>
       <div class="flex items-center gap-2">
         <select
           v-model="selectedTimeRange"
-          class="text-xs text-gray-600 bg-white border border-gray-300 rounded px-1 py-0.5 hover:border-gray-400 focus:outline-none focus:border-blue-500 cursor-pointer"
+          class="text-xs rounded px-1 py-0.5 focus:outline-none cursor-pointer"
+          :class="isDark ? 'text-gray-300 bg-gray-700 border border-gray-600 hover:border-gray-500 focus:border-blue-500' : 'text-gray-600 bg-white border border-gray-300 hover:border-gray-400 focus:border-blue-500'"
         >
           <option v-for="option in timeRangeOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -298,8 +300,8 @@ watch(
 
     <!-- Loading State -->
     <div v-if="loading && events.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-500 flex items-center">
-        <svg class="animate-spin h-3 w-3 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24">
+      <div class="text-xs flex items-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+        <svg class="animate-spin h-3 w-3 mr-1" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -309,14 +311,14 @@ watch(
 
     <!-- No Camera Selected -->
     <div v-else-if="!camera" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Select a camera to view events
       </div>
     </div>
 
     <!-- No Types Selected -->
     <div v-else-if="selectedTypes.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         Select event types to view
       </div>
     </div>
@@ -330,7 +332,7 @@ watch(
 
     <!-- No Events -->
     <div v-else-if="hasNoEvents" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-gray-400 text-center">
+      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
         No events found
       </div>
     </div>
@@ -345,12 +347,14 @@ watch(
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 bg-green-50 rounded hover:bg-green-100 transition-colors cursor-pointer"
+        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
+        :class="isDark ? 'bg-green-900/30 hover:bg-green-900/50' : 'bg-green-50 hover:bg-green-100'"
         @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->
         <div
-          class="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0"
+          class="w-12 h-8 rounded overflow-hidden flex-shrink-0"
+          :class="isDark ? 'bg-gray-700' : 'bg-gray-200'"
           @mouseenter="handleThumbnailHover(event, $event)"
           @mouseleave="clearHover"
         >
@@ -361,7 +365,7 @@ watch(
             class="w-full h-full object-cover cursor-pointer"
           />
           <div v-else class="w-full h-full flex items-center justify-center">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
@@ -369,12 +373,12 @@ watch(
 
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
-          <div class="text-xs font-medium text-gray-700 truncate">
+          <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
             {{ getEventTypeName(event.type) }}
           </div>
-          <div class="text-xs text-gray-400 flex justify-between">
+          <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
-            <span class="text-gray-700">{{ formatAge(event.startTimestamp) }}</span>
+            <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(event.startTimestamp) }}</span>
           </div>
         </div>
       </div>
@@ -383,7 +387,8 @@ watch(
       <Teleport to="body">
         <div
           v-if="hoveredEventId && hoverPosition && getImage(hoveredEventId)"
-          class="fixed z-[9999] bg-white rounded-lg shadow-xl border border-gray-200 p-2 pointer-events-none"
+          class="fixed z-[9999] rounded-lg shadow-xl p-2 pointer-events-none"
+          :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
           :style="{
             top: hoverPosition.bottom + 'px',
             left: hoverPosition.right + 'px',
@@ -403,21 +408,23 @@ watch(
         v-if="hasMoreEvents"
         @click="loadMore"
         :disabled="loading"
-        class="w-full py-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+        class="w-full py-1 text-xs rounded transition-colors disabled:opacity-50"
+        :class="isDark ? 'text-blue-400 hover:text-blue-300 hover:bg-gray-700' : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'"
       >
         {{ loading ? 'Loading...' : 'Load more' }}
       </button>
     </div>
 
     <!-- Event Count -->
-    <div v-if="events.length > 0" class="text-xs text-gray-400 mt-1 flex-shrink-0 pt-1 border-t border-gray-100">
+    <div v-if="events.length > 0" class="text-xs mt-1 flex-shrink-0 pt-1 border-t" :class="isDark ? 'text-gray-500 border-gray-700' : 'text-gray-400 border-gray-100'">
       {{ events.length }} event{{ events.length !== 1 ? 's' : '' }}
     </div>
 
     <!-- Scroll to top indicator -->
     <div
       v-if="events.length > 0 && !isAtTop"
-      class="text-xs text-center text-gray-400 py-1 cursor-pointer hover:text-blue-600"
+      class="text-xs text-center py-1 cursor-pointer"
+      :class="isDark ? 'text-gray-500 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'"
       @click="scrollToTop"
     >
       Click to scroll to top
