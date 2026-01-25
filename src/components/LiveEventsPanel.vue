@@ -33,6 +33,7 @@ const connectionError = ref<EenError | null>(null)
 const events = ref<SSEEvent[]>([])
 const eventTypeNames = ref<Map<string, string>>(new Map())
 const autoScroll = ref(true)
+const autoReconnect = ref(false)
 const hoveredEventId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 
@@ -149,6 +150,16 @@ function handleStatusChange(status: SSEConnectionStatus) {
     // Clean up if connection lost
     if (sseConnection.value) {
       sseConnection.value = null
+    }
+
+    // Auto-reconnect if enabled and we have camera/types
+    if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
+      // Small delay before reconnecting
+      setTimeout(() => {
+        if (autoReconnect.value && !isConnected.value && !isConnecting.value) {
+          connect()
+        }
+      }, 2000)
     }
   }
 }
@@ -326,6 +337,14 @@ onUnmounted(async () => {
         >
           {{ isConnecting ? 'Cancel' : 'Disconnect' }}
         </button>
+
+        <!-- Auto-reconnect Checkbox -->
+        <input
+          type="checkbox"
+          v-model="autoReconnect"
+          class="w-3 h-3 cursor-pointer accent-blue-600"
+          title="Auto-reconnect when subscription expires"
+        />
       </div>
     </div>
 
