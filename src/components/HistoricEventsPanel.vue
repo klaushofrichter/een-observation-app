@@ -3,6 +3,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { listEvents, listEventTypes } from 'een-api-toolkit'
 import type { Camera, Event, EenError } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
+import { useEventAge } from '@/composables/useEventAge'
 
 const props = defineProps<{
   camera: Camera | null
@@ -16,6 +17,9 @@ const emit = defineEmits<{
 
 // Use shared image cache
 const { loadImage, getImage, clearImages } = useImageCache()
+
+// Use event age formatting
+const { formatAge } = useEventAge()
 
 // State
 const loading = ref(false)
@@ -305,8 +309,9 @@ watch(
           <div class="text-xs font-medium text-gray-700 truncate">
             {{ getEventTypeName(event.type) }}
           </div>
-          <div class="text-xs text-gray-400">
-            {{ formatTimestamp(event.startTimestamp) }}
+          <div class="text-xs text-gray-400 flex justify-between">
+            <span>{{ formatTimestamp(event.startTimestamp) }}</span>
+            <span class="text-gray-300">{{ formatAge(event.startTimestamp) }}</span>
           </div>
         </div>
       </div>
