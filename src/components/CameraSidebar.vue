@@ -4,7 +4,7 @@ import { getCameras, getLayouts } from 'een-api-toolkit'
 import type { Camera, ListCamerasParams, EenError, Layout } from 'een-api-toolkit'
 import CameraCard from './CameraCard.vue'
 
-defineProps<{
+const props = defineProps<{
   selectedCameraId: string | null
 }>()
 
@@ -124,9 +124,28 @@ function applyLayoutFilter() {
     }
   }
   totalSize.value = cameras.value.length
-  currentPage.value = 1 // Reset to first page
 
-  // Auto-select first camera
+  // Check if current camera is in the filtered list
+  const currentCameraId = props.selectedCameraId
+  const currentCameraIndex = currentCameraId
+    ? cameras.value.findIndex(cam => cam.id === currentCameraId)
+    : -1
+
+  if (currentCameraIndex >= 0) {
+    // Current camera is in the filtered list
+    // Check if it will be visible on the first page
+    const isVisibleOnFirstPage = currentCameraIndex < camerasPerPage.value
+
+    if (isVisibleOnFirstPage) {
+      // Keep current camera selected, reset to first page
+      currentPage.value = 1
+      // Don't emit - keep existing selection
+      return
+    }
+  }
+
+  // Current camera not in list or not visible on first page - select first camera
+  currentPage.value = 1
   if (cameras.value.length > 0) {
     emit('select-camera', cameras.value[0])
   }
