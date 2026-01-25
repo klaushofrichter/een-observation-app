@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import { listEvents, listEventTypes } from 'een-api-toolkit'
 import type { Camera, Event, EenError } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
@@ -122,6 +122,8 @@ async function fetchEvents(append = false) {
       clearImages()
       // Emit event timestamps so live events can filter out duplicates
       emit('events-refreshed', newEvents.map(e => e.startTimestamp))
+      // Scroll to top on refresh
+      nextTick(() => scrollToTop())
     }
     nextPageToken.value = result.data.nextPageToken
 
