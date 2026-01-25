@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
 import { listEvents, listEventTypes } from 'een-api-toolkit'
 import type { Camera, Event, EenError } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
@@ -31,6 +31,12 @@ const hoveredEventId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 const isAtTop = ref(true)
 
+// Auto-refresh state
+const autoRefresh = ref(false)
+const refreshCountdown = ref(0) // seconds until next refresh
+const AUTO_REFRESH_INTERVAL = 5 * 60 // 5 minutes in seconds
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
 
@@ -46,6 +52,17 @@ const selectedTimeRange = ref(60) // Default: 1 hour
 // Computed
 const hasMoreEvents = computed(() => !!nextPageToken.value)
 const hasNoEvents = computed(() => !loading.value && events.value.length === 0 && !error.value)
+
+// Computed refresh button label
+const refreshButtonLabel = computed(() => {
+  if (loading.value) return 'Loading...'
+  if (!autoRefresh.value) return 'Refresh'
+
+  if (refreshCountdown.value < 60) {
+    return `${refreshCountdown.value}s`
+  }
+  return `${Math.ceil(refreshCountdown.value / 60)}m`
+})
 
 // Get start timestamp for the time range
 function getStartTimestamp(): string {
@@ -196,6 +213,44 @@ function scrollToTop() {
   }
 }
 
+// Start auto-refresh timer
+function startRefreshTimer() {
+  stopRefreshTimer()
+  refreshCountdown.value = AUTO_REFRESH_INTERVAL
+
+  refreshTimer = setInterval(() => {
+    refreshCountdown.value--
+
+    if (refreshCountdown.value <= 0) {
+      fetchEvents()
+      refreshCountdown.value = AUTO_REFRESH_INTERVAL
+    }
+  }, 1000)
+}
+
+// Stop auto-refresh timer
+function stopRefreshTimer() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  refreshCountdown.value = 0
+}
+
+// Watch auto-refresh checkbox changes
+watch(autoRefresh, (enabled) => {
+  if (enabled) {
+    startRefreshTimer()
+  } else {
+    stopRefreshTimer()
+  }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopRefreshTimer()
+})
+
 // Initialize event type names
 fetchEventTypeNames()
 
@@ -225,11 +280,19 @@ watch(
         <button
           @click="fetchEvents()"
           :disabled="loading"
-          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[60px]"
           title="Refresh events and move matching Live Events here"
         >
-          {{ loading ? 'Loading...' : 'Refresh' }}
+          {{ refreshButtonLabel }}
         </button>
+
+        <!-- Auto-refresh Checkbox -->
+        <input
+          type="checkbox"
+          v-model="autoRefresh"
+          class="w-3 h-3 cursor-pointer accent-blue-600"
+          title="Auto-refresh every 5 minutes"
+        />
       </div>
     </div>
 
