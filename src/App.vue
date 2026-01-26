@@ -48,14 +48,22 @@ watch(() => authStore.isAuthenticated, loadUser)
 <template>
   <div class="min-h-screen" :class="isDark ? 'bg-gray-900' : 'bg-gray-100'">
     <!-- Top Bar -->
-    <header class="bg-een-primary text-white px-4 py-3 shadow-md">
+    <header class="bg-een-primary text-white px-4 py-2 shadow-md">
       <div class="flex items-center justify-between">
         <a
           href="https://github.com/klaushofrichter/een-observation-app"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-xl font-semibold hover:opacity-90"
+          class="flex items-center gap-2 text-xl font-semibold hover:opacity-90"
         >
+          <!-- Eye icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" class="w-6 h-6">
+            <path d="M16 6C8 6 2 16 2 16s6 10 14 10 14-10 14-10S24 6 16 6z" fill="#60a5fa" stroke="#3b82f6" stroke-width="1"/>
+            <ellipse cx="16" cy="16" rx="7" ry="7" fill="white"/>
+            <circle cx="16" cy="16" r="5" fill="#3b82f6"/>
+            <circle cx="16" cy="16" r="2.5" fill="#1e3a8a"/>
+            <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.8"/>
+          </svg>
           {{ appName }}
         </a>
         <div class="flex items-center gap-4 text-sm">

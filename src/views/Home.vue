@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, inject } from 'vue'
+import { ref, onMounted, computed, inject, watch } from 'vue'
 import type { Ref } from 'vue'
 import { getCurrentUser } from 'een-api-toolkit'
 import type { Camera } from 'een-api-toolkit'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import CameraSidebar from '../components/CameraSidebar.vue'
 import MainVideoPlayer from '../components/MainVideoPlayer.vue'
 import EventTypesPanel from '../components/EventTypesPanel.vue'
@@ -27,12 +27,28 @@ interface EenError {
 }
 
 const router = useRouter()
+const route = useRoute()
 const user = ref<UserProfile | null>(null)
 const loading = ref(true)
 const error = ref<EenError | null>(null)
 
+// Get initial camera ID from URL query parameter
+const initialCameraId = computed(() => {
+  const id = route.query.id
+  return typeof id === 'string' ? id : null
+})
+
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
+
+// Update URL when camera selection changes
+watch(selectedCamera, (camera) => {
+  const newQuery = camera ? { id: camera.id } : {}
+  // Only update if different to avoid unnecessary history entries
+  if (route.query.id !== newQuery.id) {
+    router.replace({ query: newQuery })
+  }
+})
 
 // Playback state - when an event is clicked, switch from live to recorded playback
 const playbackMode = ref<'live' | 'recorded'>('live')
@@ -95,7 +111,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="home-view h-[calc(100vh-56px)]">
+  <div class="home-view h-[calc(100vh-48px)]">
     <!-- Loading State -->
     <div v-if="loading" class="flex items-center justify-center h-full">
       <div class="text-gray-600">Loading...</div>
@@ -113,6 +129,7 @@ onMounted(async () => {
       <!-- Camera Sidebar -->
       <CameraSidebar
         :selected-camera-id="selectedCameraId"
+        :initial-camera-id="initialCameraId"
         @select-camera="handleCameraSelect"
       />
 
@@ -196,6 +213,6 @@ onMounted(async () => {
 <style scoped>
 /* Ensure proper height calculation accounting for header */
 .home-view {
-  height: calc(100vh - 56px);
+  height: calc(100vh - 48px);
 }
 </style>
