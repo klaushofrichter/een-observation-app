@@ -1,6 +1,6 @@
 # EEN Camera Observation App
 
-A Vue 3 single-page application for Eagle Eye Networks camera monitoring with live video streaming, event detection, and real-time notifications.
+A Vue 3 single-page application for Eagle Eye Networks camera monitoring with live video streaming, event display, and real-time event push.
 
 ![App Screenshot](./public/app-screenshot.png)
 
@@ -10,7 +10,6 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Camera Sidebar** - Paginated list of cameras with live MJPEG preview thumbnails
 - **Layout Support** - Filter cameras by predefined layouts or view all cameras
 - **URL Camera Selection** - Deep-link to specific cameras via URL parameters (see below)
-- **Visual Selection Feedback** - Selected camera shows thick border (orange when playing, black/white when selected)
 
 ### Video Playback
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
@@ -32,8 +31,8 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 
 ### User Interface
 - **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
-- **Responsive Layout** - Optimized for various screen sizes
 - **Event Highlighting** - Active event shows orange border, distinct styling for historic vs live events
+- **Visual Camera Selection Feedback** - Selected camera shows thick borderer
 
 ## URL Camera Selection
 
