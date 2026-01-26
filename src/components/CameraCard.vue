@@ -6,6 +6,7 @@ import type { Camera, CameraStatus, Feed } from 'een-api-toolkit'
 const props = defineProps<{
   camera: Camera
   selected: boolean
+  isPlaying?: boolean
   isDark?: boolean
 }>()
 
@@ -143,11 +144,13 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="camera-card cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 hover:shadow-lg"
+    class="camera-card cursor-pointer rounded-lg overflow-hidden transition-all duration-200 hover:shadow-lg"
     :class="[
-      selected
-        ? (isDark ? 'border-orange-500 shadow-lg' : 'border-orange-400 shadow-lg')
-        : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
+      isPlaying
+        ? (isDark ? 'border-4 border-orange-500 shadow-lg' : 'border-4 border-orange-400 shadow-lg')
+        : selected
+          ? (isDark ? 'border-4 border-white shadow-lg' : 'border-4 border-gray-900 shadow-lg')
+          : (isDark ? 'border-2 border-gray-600 hover:border-gray-500' : 'border-2 border-gray-200 hover:border-gray-300')
     ]"
     @click="handleClick"
     :data-camera-id="camera.id"
@@ -205,7 +208,14 @@ onUnmounted(() => {
     </div>
 
     <!-- Camera Info -->
-    <div class="p-2" :class="isDark ? 'bg-gray-700' : 'bg-white'">
+    <div
+      class="p-2"
+      :class="[
+        isPlaying
+          ? (isDark ? 'bg-violet-900' : 'bg-violet-300')
+          : (isDark ? 'bg-gray-700' : 'bg-white')
+      ]"
+    >
       <h3 class="text-sm font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-800'" :title="camera.name">
         {{ camera.name }}
       </h3>

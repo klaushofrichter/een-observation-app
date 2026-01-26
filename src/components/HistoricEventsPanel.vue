@@ -350,11 +350,11 @@ watch(
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer border-2"
+        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
         :class="[
           activeEventId === event.id
-            ? (isDark ? 'bg-green-900/50 border-orange-500' : 'bg-green-100 border-orange-400')
-            : (isDark ? 'bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'bg-green-50 hover:bg-green-100 border-transparent')
+            ? (isDark ? 'border-4 bg-green-800/70 border-orange-500' : 'border-4 bg-green-200 border-orange-400')
+            : (isDark ? 'border-2 bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'border-2 bg-green-50 hover:bg-green-100 border-transparent')
         ]"
         @click="handleEventClick(event)"
       >
