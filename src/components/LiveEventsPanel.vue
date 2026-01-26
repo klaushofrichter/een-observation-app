@@ -44,6 +44,13 @@ let isProactiveReconnecting = false // Flag to prevent double-reconnection
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 const isAtBottom = ref(false) // Track if scrolled to bottom
 
+// Debounce timer for event type changes
+const DEBOUNCE_DELAY_MS = 500 // Wait 500ms for event type changes to settle
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// Connection guard - tracks current connection attempt to prevent races
+let connectionAttemptId = 0
+
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
 
@@ -157,6 +164,14 @@ function clearReconnectTimer() {
   }
 }
 
+// Clear the debounce timer
+function clearDebounceTimer() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+}
+
 // Start the reconnect timer (proactive reconnection before TTL expires)
 function startReconnectTimer() {
   clearReconnectTimer()
@@ -241,26 +256,34 @@ function handleError(error: Error) {
 async function connect() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
+  // Increment connection attempt ID to invalidate any pending connections
+  connectionAttemptId++
+  const currentAttemptId = connectionAttemptId
+
   connectionStatus.value = 'connecting'
   connectionError.value = null
   events.value = []
   clearImages() // Clear images to prevent showing thumbnails from previous camera
 
-  await createAndConnectSubscription()
+  await createAndConnectSubscription(currentAttemptId)
 }
 
 // Connect without clearing events (for proactive reconnection)
 async function connectWithoutClearingEvents() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
+  // Increment connection attempt ID to invalidate any pending connections
+  connectionAttemptId++
+  const currentAttemptId = connectionAttemptId
+
   connectionStatus.value = 'connecting'
   connectionError.value = null
 
-  await createAndConnectSubscription()
+  await createAndConnectSubscription(currentAttemptId)
 }
 
 // Core subscription creation and connection logic
-async function createAndConnectSubscription() {
+async function createAndConnectSubscription(attemptId: number) {
   // Create subscription
   const subscriptionResult = await createEventSubscription({
     deliveryConfig: { type: 'serverSentEvents.v1' },
@@ -269,6 +292,15 @@ async function createAndConnectSubscription() {
       types: props.selectedTypes.map(type => ({ id: type }))
     }]
   })
+
+  // Check if this attempt is still current (another connection might have been requested)
+  if (attemptId !== connectionAttemptId) {
+    // This attempt is stale, clean up and abort
+    if (!subscriptionResult.error && subscriptionResult.data?.id) {
+      deleteEventSubscription(subscriptionResult.data.id)
+    }
+    return
+  }
 
   if (subscriptionResult.error) {
     connectionError.value = subscriptionResult.error
@@ -292,6 +324,14 @@ async function createAndConnectSubscription() {
     return
   }
 
+  // Check again before connecting
+  if (attemptId !== connectionAttemptId) {
+    // This attempt is stale, clean up and abort
+    deleteEventSubscription(subscriptionResult.data.id)
+    subscriptionId.value = null
+    return
+  }
+
   // Connect to SSE stream
   const connectionResult = connectToEventSubscription(sseUrl, {
     onEvent: handleEvent,
@@ -310,8 +350,12 @@ async function createAndConnectSubscription() {
 
 // Disconnect from SSE stream
 async function disconnect() {
-  // Clear reconnect timer
+  // Increment attempt ID to cancel any pending connection attempts
+  connectionAttemptId++
+
+  // Clear timers
   clearReconnectTimer()
+  clearDebounceTimer()
 
   // Close SSE connection
   if (sseConnection.value) {
@@ -365,22 +409,50 @@ function handleScroll() {
 // Fetch event type names on mount
 fetchEventTypeNames()
 
-// Watch for camera or selected types changes - reconnect automatically
+// Debounced reconnection handler
+async function debouncedReconnect(cameraId: string, types: string[]) {
+  // Clear any existing debounce timer
+  clearDebounceTimer()
+
+  // First, disconnect any existing connection immediately
+  const wasConnected = isConnected.value || isConnecting.value
+  if (wasConnected) {
+    await disconnect()
+  }
+
+  // If no types selected, don't reconnect
+  if (types.length === 0) {
+    return
+  }
+
+  // Debounce the reconnection to wait for rapid changes to settle
+  debounceTimer = setTimeout(async () => {
+    debounceTimer = null
+    // Double-check we still have valid camera and types
+    if (props.camera?.id === cameraId && props.selectedTypes.length > 0) {
+      await connect()
+    }
+  }, DEBOUNCE_DELAY_MS)
+}
+
+// Watch for camera or selected types changes - reconnect automatically with debouncing
 watch(
   [() => props.camera?.id, () => props.selectedTypes],
-  async ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
+  ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
     const cameraChanged = newCameraId !== oldCameraId
     const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
-    const wasConnected = isConnected.value || isConnecting.value
 
-    // If camera or types changed, disconnect first
-    if (wasConnected && (cameraChanged || typesChanged)) {
-      await disconnect()
+    // Only act if something actually changed
+    if (!cameraChanged && !typesChanged) {
+      return
     }
 
-    // Auto-connect when camera or event types change (if we have a camera and event types)
-    if ((cameraChanged || typesChanged) && newCameraId && newTypes && newTypes.length > 0) {
-      await connect()
+    // Use debounced reconnection
+    if (newCameraId && newTypes) {
+      debouncedReconnect(newCameraId, newTypes)
+    } else if (!newCameraId || newTypes.length === 0) {
+      // No camera or no types - just disconnect
+      disconnect()
     }
   },
   { deep: true }
