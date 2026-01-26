@@ -12,6 +12,7 @@ export interface HlsPlayerReturn {
   loadVideo: (deviceId: string, timestamp: string) => Promise<void>
   resetVideo: () => void
   destroyHls: () => void
+  seekToEventStart: () => void
 }
 
 export function useHlsPlayer(): HlsPlayerReturn {
@@ -25,6 +26,7 @@ export function useHlsPlayer(): HlsPlayerReturn {
 
   let hlsInstance: Hls | null = null
   let mediaSessionInitialized = false
+  let seekOffsetSeconds = 0 // Offset to seek to after manifest loads
 
   // Initialize media session (required for some HLS configurations)
   async function ensureMediaSession(): Promise<boolean> {
@@ -67,6 +69,10 @@ export function useHlsPlayer(): HlsPlayerReturn {
     hlsInstance.attachMedia(videoRef.value)
 
     hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+      // Seek to the target timestamp offset if specified
+      if (videoRef.value && seekOffsetSeconds > 0) {
+        videoRef.value.currentTime = seekOffsetSeconds
+      }
       videoRef.value?.play().catch(() => {
         // Autoplay may be blocked by browser
       })
@@ -147,6 +153,10 @@ export function useHlsPlayer(): HlsPlayerReturn {
       return
     }
 
+    // Calculate seek offset from interval start to target timestamp
+    const intervalStartMs = new Date(interval.startTimestamp).getTime()
+    seekOffsetSeconds = Math.max(0, (targetTimeMs - intervalStartMs) / 1000)
+
     videoUrl.value = interval.hlsUrl
     loadingVideo.value = false
 
@@ -160,6 +170,14 @@ export function useHlsPlayer(): HlsPlayerReturn {
     videoUrl.value = null
     videoError.value = null
     loadingVideo.value = false
+    seekOffsetSeconds = 0
+  }
+
+  // Seek back to the original event timestamp
+  function seekToEventStart() {
+    if (videoRef.value && seekOffsetSeconds >= 0) {
+      videoRef.value.currentTime = seekOffsetSeconds
+    }
   }
 
   onUnmounted(() => {
@@ -173,6 +191,7 @@ export function useHlsPlayer(): HlsPlayerReturn {
     videoRef,
     loadVideo,
     resetVideo,
-    destroyHls
+    destroyHls,
+    seekToEventStart
   }
 }

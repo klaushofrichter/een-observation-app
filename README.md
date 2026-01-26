@@ -10,11 +10,13 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Camera Sidebar** - Paginated list of cameras with live MJPEG preview thumbnails
 - **Layout Support** - Filter cameras by predefined layouts or view all cameras
 - **URL Camera Selection** - Deep-link to specific cameras via URL parameters (see below)
+- **Visual Selection Feedback** - Selected camera shows thick border (orange when playing, black/white when selected)
 
 ### Video Playback
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
-- **Recorded Playback** - HLS video playback for historic events
+- **Recorded Playback** - HLS video playback for historic events with precise timestamp seeking
 - **Camera Information Panel** - Display camera status, name, ID, and account info
+- **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
 
 ### Events System
 - **Event Type Filtering** - Toggle event types (motion detection, person detection, device status)
@@ -28,6 +30,11 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Session Persistence** - Stay logged in across page refreshes using localStorage
 - **Token Auto-Refresh** - Automatic token renewal before expiration
 
+### User Interface
+- **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
+- **Responsive Layout** - Optimized for various screen sizes
+- **Event Highlighting** - Active event shows orange border, distinct styling for historic vs live events
+
 ## URL Camera Selection
 
 You can deep-link directly to specific cameras by adding the `id` parameter to the URL:
@@ -36,12 +43,17 @@ You can deep-link directly to specific cameras by adding the `id` parameter to t
 http://127.0.0.1:3333?id=1005963a,1003e46b
 ```
 
-When camera IDs are provided in the URL:
+**Multiple cameras (layout mode):**
 - A **"URL-cameras"** option appears at the top of the layout dropdown
 - Only the specified cameras are displayed in the sidebar
 - If a camera ID is invalid or inaccessible, an error card is shown instead
 - The URL parameters persist through the OAuth login flow
 - Accessing the app without the `id` parameter clears any previously stored camera IDs
+
+**Single camera (auto-sync):**
+- When you select a camera, the URL automatically updates to include its ID
+- Share the URL to let others view the same camera directly
+- The camera auto-selects when loading with a single camera ID in the URL
 
 ## Technology Stack
 
