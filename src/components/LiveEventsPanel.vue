@@ -572,11 +572,11 @@ onUnmounted(async () => {
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded border-2 animate-fade-in cursor-pointer"
+        class="relative flex items-center gap-2 p-1.5 rounded animate-fade-in cursor-pointer"
         :class="[
           activeEventId === event.id
-            ? (isDark ? 'bg-blue-900/50 border-orange-500' : 'bg-blue-100 border-orange-400')
-            : (isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'bg-blue-50 hover:bg-blue-100 border-transparent')
+            ? (isDark ? 'border-4 bg-blue-800/70 border-orange-500' : 'border-4 bg-blue-200 border-orange-400')
+            : (isDark ? 'border-2 bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'border-2 bg-blue-50 hover:bg-blue-100 border-transparent')
         ]"
         @click="handleEventClick(event)"
       >

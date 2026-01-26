@@ -130,6 +130,7 @@ onMounted(async () => {
       <CameraSidebar
         :selected-camera-id="selectedCameraId"
         :initial-camera-id="initialCameraId"
+        :is-live-playback="playbackMode === 'live'"
         @select-camera="handleCameraSelect"
       />
 

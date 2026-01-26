@@ -34,6 +34,9 @@ const error = ref<string | null>(null)
 const isStreaming = ref(false)
 const isMounted = ref(true)
 
+// HLS playback state
+const isHlsPlaying = ref(true) // Assume playing initially since autoplay is enabled
+
 // Helper to extract status string from the union type
 function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
   if (!status) return undefined
@@ -83,6 +86,39 @@ const formattedPlaybackTimestamp = computed(() => {
     second: '2-digit'
   })
 })
+
+// Handle event card click - seek to timestamp and toggle play/pause
+function handleEventCardClick() {
+  const video = hlsPlayer.videoRef.value
+  if (!video) return
+
+  if (props.playbackTimestamp && hlsPlayer.videoUrl.value) {
+    // Seek back to the event timestamp
+    hlsPlayer.seekToEventStart()
+
+    // Toggle play/pause
+    if (video.paused) {
+      video.play()
+      isHlsPlaying.value = true
+    } else {
+      video.pause()
+      isHlsPlaying.value = false
+    }
+  }
+}
+
+// Update play state when video events occur
+function setupVideoEventListeners() {
+  const video = hlsPlayer.videoRef.value
+  if (!video) return
+
+  video.addEventListener('play', () => {
+    isHlsPlaying.value = true
+  })
+  video.addEventListener('pause', () => {
+    isHlsPlaying.value = false
+  })
+}
 
 // Stop the current live player and clear video element
 function stopLivePlayer() {
@@ -186,6 +222,10 @@ watch([() => props.playbackMode, () => props.playbackTimestamp], async ([newMode
     stopLivePlayer()
     await nextTick()
     await hlsPlayer.loadVideo(props.camera.id, newTimestamp)
+    // Set up event listeners after video loads
+    await nextTick()
+    setupVideoEventListeners()
+    isHlsPlaying.value = true // Reset to playing state
   } else if (newMode === 'live' && oldMode === 'recorded') {
     // Switch back to live
     hlsPlayer.resetVideo()
@@ -415,10 +455,25 @@ onUnmounted(() => {
         <!-- Event Timestamp (only shown for recorded playback) -->
         <div
           v-if="!isLiveMode && formattedPlaybackTimestamp"
-          class="p-3 rounded-lg border"
+          class="p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
           :class="isDark ? 'border-orange-500 bg-orange-900/20' : 'border-orange-400 bg-orange-50'"
+          @click="handleEventCardClick"
+          title="Click to play/pause"
         >
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">{{ playbackEventType || 'Event Time' }}</label>
+          <div class="flex items-center justify-between">
+            <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide cursor-pointer">{{ playbackEventType || 'Event Time' }}</label>
+            <!-- Play/Pause Icon -->
+            <div class="flex-shrink-0">
+              <!-- Pause Icon (shown when playing) -->
+              <svg v-if="isHlsPlaying" class="w-5 h-5" :class="isDark ? 'text-orange-400' : 'text-orange-600'" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              </svg>
+              <!-- Play Icon (shown when paused) -->
+              <svg v-else class="w-5 h-5" :class="isDark ? 'text-orange-400' : 'text-orange-600'" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+          </div>
           <p :class="isDark ? 'text-orange-400' : 'text-orange-600'" class="text-sm mt-1 font-medium">{{ formattedPlaybackTimestamp }}</p>
         </div>
 

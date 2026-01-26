@@ -9,6 +9,7 @@ import ErrorCameraCard from './ErrorCameraCard.vue'
 const props = defineProps<{
   selectedCameraId: string | null
   initialCameraId?: string | null
+  isLivePlayback?: boolean
 }>()
 
 // Inject dark mode state
@@ -418,6 +419,7 @@ onUnmounted(() => {
             v-if="item.type === 'camera'"
             :camera="item.camera"
             :selected="item.camera.id === selectedCameraId"
+            :is-playing="item.camera.id === selectedCameraId && isLivePlayback"
             :is-dark="isDark"
             @select="handleCameraSelect"
           />
