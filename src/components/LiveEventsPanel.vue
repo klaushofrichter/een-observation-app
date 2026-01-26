@@ -14,10 +14,11 @@ const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
   isDark?: boolean
+  activeEventId?: string | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'event-clicked', event: { cameraId: string; timestamp: string }): void
+  (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string }): void
 }>()
 
 // Use shared image cache
@@ -107,6 +108,12 @@ function scrollToTop() {
 
 // Handle new SSE event
 function handleEvent(event: SSEEvent) {
+  // Check for duplicates by event ID
+  const isDuplicate = events.value.some(e => e.id === event.id)
+  if (isDuplicate) {
+    return // Skip duplicate events
+  }
+
   // Add event to the beginning (newest first)
   events.value.unshift(event)
 
@@ -152,7 +159,9 @@ function clearHover() {
 function handleEventClick(event: SSEEvent) {
   emit('event-clicked', {
     cameraId: event.actorId,
-    timestamp: event.startTimestamp
+    timestamp: event.startTimestamp,
+    eventType: getEventTypeName(event.type),
+    eventId: event.id
   })
 }
 
@@ -563,8 +572,12 @@ onUnmounted(async () => {
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded border-l-2 border-blue-400 animate-fade-in cursor-pointer"
-        :class="isDark ? 'bg-blue-900/30' : 'bg-blue-50'"
+        class="relative flex items-center gap-2 p-1.5 rounded border-2 animate-fade-in cursor-pointer"
+        :class="[
+          activeEventId === event.id
+            ? (isDark ? 'bg-blue-900/50 border-orange-500' : 'bg-blue-100 border-orange-400')
+            : (isDark ? 'bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'bg-blue-50 hover:bg-blue-100 border-transparent')
+        ]"
         @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->

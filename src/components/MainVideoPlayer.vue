@@ -9,6 +9,7 @@ const props = defineProps<{
   camera: Camera
   playbackMode?: 'live' | 'recorded'
   playbackTimestamp?: string | null
+  playbackEventType?: string | null
   isDark?: boolean
 }>()
 
@@ -67,6 +68,20 @@ const statusClass = computed(() => {
     default:
       return 'bg-yellow-500'
   }
+})
+
+// Format playback timestamp for display in local timezone
+const formattedPlaybackTimestamp = computed(() => {
+  if (!props.playbackTimestamp) return null
+  const date = new Date(props.playbackTimestamp)
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
 })
 
 // Stop the current live player and clear video element
@@ -276,7 +291,7 @@ onUnmounted(() => {
           v-if="isStreaming && !loading && !error"
           class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
         >
-          <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           <span class="text-white text-xs font-medium">LIVE HD</span>
         </div>
       </template>
@@ -356,7 +371,7 @@ onUnmounted(() => {
           v-if="hlsPlayer.videoUrl.value && !hlsPlayer.loadingVideo.value && !hlsPlayer.videoError.value"
           class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-black/60 rounded-lg z-20"
         >
-          <span class="w-2 h-2 bg-orange-500 rounded-full" />
+          <span class="w-2 h-2 bg-green-500 rounded-full" />
           <span class="text-white text-xs font-medium">RECORDED</span>
         </div>
       </template>
@@ -370,68 +385,69 @@ onUnmounted(() => {
       <h3 :class="isDark ? 'text-white' : 'text-gray-800'" class="font-semibold text-lg mb-4">Camera Information</h3>
 
       <div class="space-y-4">
-        <!-- Status -->
-        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Status</label>
-          <div class="flex items-center gap-2 mt-1">
-            <span
-              class="w-2 h-2 rounded-full"
-              :class="statusClass"
-            />
-            <span :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm capitalize">{{ statusString || 'Unknown' }}</span>
-          </div>
+        <!-- Camera Name -->
+        <div>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm font-medium">{{ camera.name }}</p>
         </div>
 
-        <!-- Camera Name -->
-        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Name</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1">{{ camera.name }}</p>
+        <!-- Status -->
+        <div class="flex items-center gap-2">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Status:</label>
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="statusClass"
+          />
+          <span :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm capitalize">{{ statusString || 'Unknown' }}</span>
         </div>
 
         <!-- Camera ID -->
-        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Camera ID</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.id }}</p>
-        </div>
-
-        <!-- Account ID -->
-        <div class="info-item" :class="isDark ? 'info-item-dark' : ''">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Account ID</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.accountId }}</p>
+        <div class="flex items-baseline gap-2">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide whitespace-nowrap">Camera ID:</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="font-mono text-xs break-all">{{ camera.id }}</p>
         </div>
 
         <!-- Bridge ID (if available) -->
-        <div v-if="camera.bridgeId" class="info-item" :class="isDark ? 'info-item-dark' : ''">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Bridge ID</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.bridgeId }}</p>
+        <div v-if="camera.bridgeId" class="flex items-baseline gap-2">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide whitespace-nowrap">Bridge ID:</label>
+          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="font-mono text-xs break-all">{{ camera.bridgeId }}</p>
+        </div>
+
+        <!-- Event Timestamp (only shown for recorded playback) -->
+        <div
+          v-if="!isLiveMode && formattedPlaybackTimestamp"
+          class="p-3 rounded-lg border"
+          :class="isDark ? 'border-orange-500 bg-orange-900/20' : 'border-orange-400 bg-orange-50'"
+        >
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">{{ playbackEventType || 'Event Time' }}</label>
+          <p :class="isDark ? 'text-orange-400' : 'text-orange-600'" class="text-sm mt-1 font-medium">{{ formattedPlaybackTimestamp }}</p>
         </div>
 
         <!-- Location ID (if available) -->
-        <div v-if="camera.locationId" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+        <div v-if="camera.locationId">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Location ID</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
         </div>
 
         <!-- MAC Address (if available) -->
-        <div v-if="camera.macAddress" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+        <div v-if="camera.macAddress">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">MAC Address</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono">{{ camera.macAddress }}</p>
         </div>
 
         <!-- IP Address (if available) -->
-        <div v-if="camera.ipAddress" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+        <div v-if="camera.ipAddress">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">IP Address</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono">{{ camera.ipAddress }}</p>
         </div>
 
         <!-- Timezone (if available) -->
-        <div v-if="camera.timezone" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+        <div v-if="camera.timezone">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Timezone</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1">{{ camera.timezone }}</p>
         </div>
 
         <!-- GUID (if available) -->
-        <div v-if="camera.guid" class="info-item" :class="isDark ? 'info-item-dark' : ''">
+        <div v-if="camera.guid">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">GUID</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.guid }}</p>
         </div>
@@ -443,20 +459,6 @@ onUnmounted(() => {
 <style scoped>
 .main-video-player {
   min-height: 0;
-}
-
-.info-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-  padding-bottom: 0.75rem;
-}
-
-.info-item.info-item-dark {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.info-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
 }
 
 /* CRITICAL: Use visibility/position to hide video, NOT v-if

@@ -53,14 +53,14 @@ export function useEventAge() {
 
     if (ageSeconds < 120) {
       // Less than 120 seconds: show seconds
-      return `${ageSeconds}s`
+      return `${ageSeconds}s ago`
     }
 
     const ageMinutes = Math.floor(ageSeconds / 60)
 
     if (ageMinutes < 60) {
       // Less than 60 minutes: show minutes
-      return `${ageMinutes}m`
+      return `${ageMinutes}m ago`
     }
 
     const ageHours = Math.floor(ageMinutes / 60)
@@ -68,13 +68,13 @@ export function useEventAge() {
 
     if (ageHours < 24) {
       // Less than 24 hours: show hours and minutes
-      return `${ageHours}h ${remainingMinutes}m`
+      return `${ageHours}h ${remainingMinutes}m ago`
     }
 
     // 24 hours or more: show days and hours
     const ageDays = Math.floor(ageHours / 24)
     const remainingHours = ageHours % 24
-    return `${ageDays}d ${remainingHours}h`
+    return `${ageDays}d ${remainingHours}h ago`
   }
 
   return {
