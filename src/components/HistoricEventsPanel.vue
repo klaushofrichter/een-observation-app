@@ -9,11 +9,12 @@ const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
   isDark?: boolean
+  activeEventId?: string | null
 }>()
 
 const emit = defineEmits<{
   (e: 'events-refreshed', eventTimestamps: string[]): void
-  (e: 'event-clicked', event: { cameraId: string; timestamp: string }): void
+  (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string }): void
 }>()
 
 // Use shared image cache
@@ -190,7 +191,9 @@ function clearHover() {
 function handleEventClick(event: Event) {
   emit('event-clicked', {
     cameraId: event.actorId,
-    timestamp: event.startTimestamp
+    timestamp: event.startTimestamp,
+    eventType: getEventTypeName(event.type),
+    eventId: event.id
   })
 }
 
@@ -347,8 +350,12 @@ watch(
       <div
         v-for="event in events"
         :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
-        :class="isDark ? 'bg-green-900/30 hover:bg-green-900/50' : 'bg-green-50 hover:bg-green-100'"
+        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer border-2"
+        :class="[
+          activeEventId === event.id
+            ? (isDark ? 'bg-green-900/50 border-orange-500' : 'bg-green-100 border-orange-400')
+            : (isDark ? 'bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'bg-green-50 hover:bg-green-100 border-transparent')
+        ]"
         @click="handleEventClick(event)"
       >
         <!-- Thumbnail -->

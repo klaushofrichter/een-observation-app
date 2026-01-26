@@ -8,6 +8,7 @@ import ErrorCameraCard from './ErrorCameraCard.vue'
 
 const props = defineProps<{
   selectedCameraId: string | null
+  initialCameraId?: string | null
 }>()
 
 // Inject dark mode state
@@ -193,9 +194,21 @@ function applyLayoutFilter() {
     }
   }
 
-  // Current camera not in list or not visible on first page - select first camera
+  // Current camera not in list or not visible on first page - select camera
   currentPage.value = 1
   if (cameras.value.length > 0) {
+    // Check if initialCameraId is provided and exists in the list
+    if (props.initialCameraId) {
+      const initialCamera = cameras.value.find(cam => cam.id === props.initialCameraId)
+      if (initialCamera) {
+        // Find which page the initial camera is on and navigate there
+        const cameraIndex = cameras.value.indexOf(initialCamera)
+        currentPage.value = Math.floor(cameraIndex / camerasPerPage.value) + 1
+        emit('select-camera', initialCamera)
+        return
+      }
+    }
+    // Fall back to first camera
     emit('select-camera', cameras.value[0])
   }
 }

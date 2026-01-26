@@ -145,7 +145,9 @@ onUnmounted(() => {
   <div
     class="camera-card cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 hover:shadow-lg"
     :class="[
-      selected ? 'border-een-accent shadow-lg' : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
+      selected
+        ? (isDark ? 'border-orange-500 shadow-lg' : 'border-orange-400 shadow-lg')
+        : (isDark ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300')
     ]"
     @click="handleClick"
     :data-camera-id="camera.id"
@@ -200,11 +202,6 @@ onUnmounted(() => {
         {{ statusString || 'unknown' }}
       </div>
 
-      <!-- Selected Indicator -->
-      <div
-        v-if="selected"
-        class="absolute inset-0 border-4 border-een-accent pointer-events-none"
-      />
     </div>
 
     <!-- Camera Info -->
