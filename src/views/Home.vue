@@ -9,6 +9,7 @@ import MainVideoPlayer from '../components/MainVideoPlayer.vue'
 import EventTypesPanel from '../components/EventTypesPanel.vue'
 import HistoricEventsPanel from '../components/HistoricEventsPanel.vue'
 import LiveEventsPanel from '../components/LiveEventsPanel.vue'
+import type { BoundingBox } from '@/composables/useBoundingBoxes'
 
 // Inject dark mode state
 const isDark = inject<Ref<boolean>>('isDark', ref(false))
@@ -55,6 +56,7 @@ const playbackMode = ref<'live' | 'recorded'>('live')
 const playbackTimestamp = ref<string | null>(null)
 const playbackEventType = ref<string | null>(null)
 const playbackEventId = ref<string | null>(null)
+const playbackBoundingBoxes = ref<BoundingBox[]>([])
 
 // Computed selected camera ID for sidebar
 const selectedCameraId = computed(() => selectedCamera.value?.id || null)
@@ -67,14 +69,16 @@ function handleCameraSelect(camera: Camera) {
   playbackTimestamp.value = null
   playbackEventType.value = null
   playbackEventId.value = null
+  playbackBoundingBoxes.value = []
 }
 
 // Handle event click - switch to recorded playback
-function handleEventClick(event: { cameraId: string; timestamp: string; eventType: string; eventId: string }) {
+function handleEventClick(event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[] }) {
   playbackMode.value = 'recorded'
   playbackTimestamp.value = event.timestamp
   playbackEventType.value = event.eventType
   playbackEventId.value = event.eventId
+  playbackBoundingBoxes.value = event.boundingBoxes
 }
 
 // Selected event types state (shared between panels)
@@ -144,6 +148,7 @@ onMounted(async () => {
               :playback-mode="playbackMode"
               :playback-timestamp="playbackTimestamp"
               :playback-event-type="playbackEventType"
+              :playback-bounding-boxes="playbackBoundingBoxes"
               :is-dark="isDark"
             />
           </div>
