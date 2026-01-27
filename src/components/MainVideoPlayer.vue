@@ -4,12 +4,15 @@ import { useAuthStore } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
+import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
+import type { BoundingBox } from '@/composables/useBoundingBoxes'
 
 const props = defineProps<{
   camera: Camera
   playbackMode?: 'live' | 'recorded'
   playbackTimestamp?: string | null
   playbackEventType?: string | null
+  playbackBoundingBoxes?: BoundingBox[]
   isDark?: boolean
 }>()
 
@@ -392,7 +395,7 @@ onUnmounted(() => {
 
         <!-- HLS Video Element -->
         <div
-          class="video-wrapper w-full h-full"
+          class="video-wrapper w-full h-full relative"
           :class="{ 'video-hidden': hlsPlayer.loadingVideo.value || hlsPlayer.videoError.value }"
         >
           <video
@@ -403,6 +406,15 @@ onUnmounted(() => {
             autoplay
             muted
             playsinline
+          />
+          <!-- Bounding Box Overlay (shown only when paused) -->
+          <BoundingBoxOverlay
+            v-if="!isHlsPlaying && playbackBoundingBoxes && playbackBoundingBoxes.length > 0"
+            :boxes="playbackBoundingBoxes"
+            :showLabels="true"
+            :thin="true"
+            :isDark="isDark"
+            class="absolute inset-0 pointer-events-none"
           />
         </div>
 
