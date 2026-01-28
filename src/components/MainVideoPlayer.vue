@@ -414,7 +414,7 @@ onUnmounted(() => {
             :showLabels="true"
             :thin="true"
             :isDark="isDark"
-            class="absolute inset-0 pointer-events-none"
+            :videoElement="hlsPlayer.videoRef.value"
           />
         </div>
 
