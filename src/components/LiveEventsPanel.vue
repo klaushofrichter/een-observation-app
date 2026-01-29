@@ -38,7 +38,7 @@ const connectionError = ref<EenError | null>(null)
 const events = ref<SSEEvent[]>([])
 const eventTypeNames = ref<Map<string, string>>(new Map())
 const autoScroll = ref(true)
-const autoReconnect = ref(false)
+const liveFeedEnabled = ref(false) // User's desired state - always reconnect when enabled
 const hoveredEventId = ref<string | null>(null)
 const boundingBoxesMap = ref<Map<string, BoundingBox[]>>(new Map())
 
@@ -68,6 +68,39 @@ const isConnecting = computed(() => connectionStatus.value === 'connecting')
 const canConnect = computed(() => {
   return props.camera && props.selectedTypes.length > 0 && !isConnected.value && !isConnecting.value
 })
+
+// Computed button label based on state
+const feedButtonLabel = computed(() => {
+  if (isConnecting.value) return 'Connecting...'
+  if (isConnected.value) return 'Live Feed On'
+  return 'Live Feed Off'
+})
+
+// Computed button styling based on state
+const feedButtonClass = computed(() => {
+  if (isConnecting.value) {
+    return 'bg-yellow-600 hover:bg-yellow-700 text-white'
+  }
+  if (isConnected.value) {
+    return 'bg-green-600 hover:bg-green-700 text-white'
+  }
+  return 'bg-gray-500 hover:bg-gray-600 text-white'
+})
+
+// Toggle live feed on/off
+function toggleLiveFeed() {
+  if (isConnected.value || isConnecting.value) {
+    // Turn off - disconnect and disable
+    liveFeedEnabled.value = false
+    disconnect()
+  } else {
+    // Turn on - enable and connect
+    liveFeedEnabled.value = true
+    if (canConnect.value) {
+      connect()
+    }
+  }
+}
 
 // Get human-readable event type name
 function getEventTypeName(type: string): string {
@@ -205,12 +238,12 @@ function clearDebounceTimer() {
 function startReconnectTimer() {
   clearReconnectTimer()
 
-  if (!autoReconnect.value) {
+  if (!liveFeedEnabled.value) {
     return
   }
 
   reconnectTimer = setTimeout(() => {
-    if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
+    if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
       // Don't clear events on proactive reconnect
       reconnect()
     }
@@ -258,11 +291,11 @@ function handleStatusChange(status: SSEConnectionStatus) {
       return
     }
 
-    // Auto-reconnect if enabled and we have camera/types
-    if (autoReconnect.value && props.camera && props.selectedTypes.length > 0) {
+    // Auto-reconnect if feed is enabled and we have camera/types
+    if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
       // Small delay before reconnecting
       setTimeout(() => {
-        if (autoReconnect.value && !isConnected.value && !isConnecting.value && !isProactiveReconnecting) {
+        if (liveFeedEnabled.value && !isConnected.value && !isConnecting.value && !isProactiveReconnecting) {
           connect()
         }
       }, 2000)
@@ -439,7 +472,7 @@ function handleScroll() {
 // Fetch event type names on mount
 fetchEventTypeNames()
 
-// Debounced reconnection handler
+// Debounced reconnection handler - only reconnects if liveFeedEnabled
 async function debouncedReconnect(cameraId: string, types: string[]) {
   // Clear any existing debounce timer
   clearDebounceTimer()
@@ -450,16 +483,16 @@ async function debouncedReconnect(cameraId: string, types: string[]) {
     await disconnect()
   }
 
-  // If no types selected, don't reconnect
-  if (types.length === 0) {
+  // If no types selected or feed not enabled, don't reconnect
+  if (types.length === 0 || !liveFeedEnabled.value) {
     return
   }
 
   // Debounce the reconnection to wait for rapid changes to settle
   debounceTimer = setTimeout(async () => {
     debounceTimer = null
-    // Double-check we still have valid camera and types
-    if (props.camera?.id === cameraId && props.selectedTypes.length > 0) {
+    // Double-check we still have valid camera, types, and feed is enabled
+    if (props.camera?.id === cameraId && props.selectedTypes.length > 0 && liveFeedEnabled.value) {
       await connect()
     }
   }, DEBOUNCE_DELAY_MS)
@@ -504,44 +537,16 @@ onUnmounted(async () => {
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Live Events</h3>
       <div class="flex items-center gap-1">
-        <!-- Connection Status Indicator -->
-        <span
-          class="w-2 h-2 rounded-full"
-          :class="{
-            'bg-green-500': isConnected,
-            'bg-yellow-500 animate-pulse': isConnecting,
-            'bg-gray-400': connectionStatus === 'disconnected',
-            'bg-red-500': connectionStatus === 'error'
-          }"
-          :title="connectionStatus"
-        ></span>
-
-        <!-- Connect/Disconnect Button -->
+        <!-- Live Feed Toggle Button -->
         <button
-          v-if="!isConnected && !isConnecting"
-          @click="connect"
-          :disabled="!canConnect"
-          class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          title="Start live event stream"
+          @click="toggleLiveFeed"
+          :disabled="!canConnect && !isConnected && !isConnecting"
+          class="px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="feedButtonClass"
+          :title="isConnected ? 'Click to stop live feed' : isConnecting ? 'Click to cancel' : 'Click to start live feed'"
         >
-          Connect
+          {{ feedButtonLabel }}
         </button>
-        <button
-          v-else
-          @click="disconnect"
-          class="px-2 py-0.5 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-          title="Stop live event stream"
-        >
-          {{ isConnecting ? 'Cancel' : 'Disconnect' }}
-        </button>
-
-        <!-- Auto-reconnect Checkbox -->
-        <input
-          type="checkbox"
-          v-model="autoReconnect"
-          class="w-3 h-3 cursor-pointer accent-blue-600"
-          title="Auto-reconnect when subscription expires"
-        />
       </div>
     </div>
 
