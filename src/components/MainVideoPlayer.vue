@@ -40,6 +40,15 @@ const isMounted = ref(true)
 
 // HLS playback state
 const isHlsPlaying = ref(true) // Assume playing initially since autoplay is enabled
+const currentVideoTime = ref(0) // Track current video time for bounding box display
+
+// Check if video is at event timestamp (within tolerance)
+const BOUNDING_BOX_TOLERANCE = 0.5 // seconds
+const isAtEventTimestamp = computed(() => {
+  if (isHlsPlaying.value) return false
+  const eventOffset = hlsPlayer.eventStartOffset.value
+  return Math.abs(currentVideoTime.value - eventOffset) <= BOUNDING_BOX_TOLERANCE
+})
 
 // Event data modal state
 const showEventDataModal = ref(false)
@@ -176,6 +185,7 @@ function handleEventCardClick() {
     } else {
       video.pause()
       isHlsPlaying.value = false
+      currentVideoTime.value = video.currentTime
     }
   }
 }
@@ -190,6 +200,7 @@ function setupVideoEventListeners() {
   })
   video.addEventListener('pause', () => {
     isHlsPlaying.value = false
+    currentVideoTime.value = video.currentTime
   })
 }
 
@@ -478,9 +489,9 @@ onUnmounted(() => {
             muted
             playsinline
           />
-          <!-- Bounding Box Overlay (shown only when paused) -->
+          <!-- Bounding Box Overlay (shown only when paused at event timestamp) -->
           <BoundingBoxOverlay
-            v-if="!isHlsPlaying && playbackBoundingBoxes && playbackBoundingBoxes.length > 0"
+            v-if="isAtEventTimestamp && playbackBoundingBoxes && playbackBoundingBoxes.length > 0"
             :boxes="playbackBoundingBoxes"
             :showLabels="true"
             :thin="true"
