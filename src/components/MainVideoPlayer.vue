@@ -13,7 +13,7 @@ const props = defineProps<{
   playbackTimestamp?: string | null
   playbackEventType?: string | null
   playbackBoundingBoxes?: BoundingBox[]
-  playbackEventData?: unknown[]
+  playbackEventObject?: Record<string, unknown> | null
   isDark?: boolean
 }>()
 
@@ -43,6 +43,37 @@ const isHlsPlaying = ref(true) // Assume playing initially since autoplay is ena
 
 // Event data modal state
 const showEventDataModal = ref(false)
+const copiedToClipboard = ref(false)
+
+// Handle ESC key to close modal
+function handleEscKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    showEventDataModal.value = false
+  }
+}
+
+// Watch modal state to add/remove ESC key listener
+watch(showEventDataModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleEscKey)
+  } else {
+    document.removeEventListener('keydown', handleEscKey)
+  }
+})
+
+// Copy event data to clipboard
+async function copyEventDataToClipboard() {
+  if (!props.playbackEventObject) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(props.playbackEventObject, null, 2))
+    copiedToClipboard.value = true
+    setTimeout(() => {
+      copiedToClipboard.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+  }
+}
 
 // Helper to extract status string from the union type
 function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
@@ -251,6 +282,7 @@ onUnmounted(() => {
   isMounted.value = false
   stopLivePlayer()
   hlsPlayer.destroyHls()
+  document.removeEventListener('keydown', handleEscKey)
 })
 </script>
 
@@ -494,7 +526,7 @@ onUnmounted(() => {
             <p :class="isDark ? 'text-orange-400' : 'text-orange-600'" class="text-sm font-medium">{{ formattedPlaybackTimestamp }}</p>
             <!-- Info Icon -->
             <button
-              v-if="playbackEventData && playbackEventData.length > 0"
+              v-if="playbackEventObject"
               @click.stop="showEventDataModal = true"
               class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors"
               :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
@@ -556,15 +588,40 @@ onUnmounted(() => {
           <!-- Header -->
           <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
             <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">Event Data</h3>
-            <button
-              @click="showEventDataModal = false"
-              class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              :class="isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-800'"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div class="flex items-center gap-2">
+              <!-- Copy Button -->
+              <button
+                @click="copyEventDataToClipboard"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  copiedToClipboard ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                ]"
+                :title="copiedToClipboard ? 'Copied!' : 'Copy to clipboard'"
+              >
+                <!-- Checkmark icon when copied -->
+                <svg v-if="copiedToClipboard" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <!-- Copy icon -->
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <!-- Close Button -->
+              <button
+                @click="showEventDataModal = false"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'
+                ]"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- Content -->
@@ -572,7 +629,7 @@ onUnmounted(() => {
             <pre
               class="text-xs font-mono p-4 rounded overflow-auto"
               :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
-            >{{ JSON.stringify(playbackEventData, null, 2) }}</pre>
+            >{{ JSON.stringify(playbackEventObject, null, 2) }}</pre>
           </div>
         </div>
       </div>
