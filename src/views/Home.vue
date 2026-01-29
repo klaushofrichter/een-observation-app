@@ -57,6 +57,7 @@ const playbackTimestamp = ref<string | null>(null)
 const playbackEventType = ref<string | null>(null)
 const playbackEventId = ref<string | null>(null)
 const playbackBoundingBoxes = ref<BoundingBox[]>([])
+const playbackEventData = ref<unknown[]>([])
 
 // Computed selected camera ID for sidebar
 const selectedCameraId = computed(() => selectedCamera.value?.id || null)
@@ -70,15 +71,17 @@ function handleCameraSelect(camera: Camera) {
   playbackEventType.value = null
   playbackEventId.value = null
   playbackBoundingBoxes.value = []
+  playbackEventData.value = []
 }
 
 // Handle event click - switch to recorded playback
-function handleEventClick(event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[] }) {
+function handleEventClick(event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventData: unknown[] }) {
   playbackMode.value = 'recorded'
   playbackTimestamp.value = event.timestamp
   playbackEventType.value = event.eventType
   playbackEventId.value = event.eventId
   playbackBoundingBoxes.value = event.boundingBoxes
+  playbackEventData.value = event.eventData
 }
 
 // Selected event types state (shared between panels)
@@ -149,6 +152,7 @@ onMounted(async () => {
               :playback-timestamp="playbackTimestamp"
               :playback-event-type="playbackEventType"
               :playback-bounding-boxes="playbackBoundingBoxes"
+              :playback-event-data="playbackEventData"
               :is-dark="isDark"
             />
           </div>

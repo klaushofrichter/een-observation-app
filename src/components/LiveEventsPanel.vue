@@ -20,7 +20,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[] }): void
+  (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventData: unknown[] }): void
 }>()
 
 // Use shared image cache
@@ -176,7 +176,8 @@ function handleEventClick(event: SSEEvent) {
     timestamp: event.startTimestamp,
     eventType: getEventTypeName(event.type),
     eventId: event.id,
-    boundingBoxes: getBoundingBoxes(event.id)
+    boundingBoxes: getBoundingBoxes(event.id),
+    eventData: event.data || []
   })
 }
 
