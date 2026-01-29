@@ -15,15 +15,17 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'events-refreshed', eventTimestamps: string[]): void
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
 }>()
 
 // Use shared image cache
-const { loadImage, getImage, clearImages } = useImageCache()
+const { loadImage, getImage } = useImageCache()
 
 // Use event age formatting
 const { formatAge } = useEventAge()
+
+// Constants
+const MAX_EVENTS = 500 // Maximum number of events to store
 
 // State
 const loading = ref(false)
@@ -35,11 +37,12 @@ const hoveredEventId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 const isAtTop = ref(true)
 const boundingBoxesMap = ref<Map<string, BoundingBox[]>>(new Map())
+const sseInsertedIds = ref<Set<string>>(new Set()) // Track events inserted via SSE (shown with blue background)
 
 // Auto-refresh state
 const autoRefresh = ref(false)
 const refreshCountdown = ref(0) // seconds until next refresh
-const AUTO_REFRESH_INTERVAL = 5 * 60 // 5 minutes in seconds
+const AUTO_REFRESH_INTERVAL = 60 // 1 minute in seconds
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 // Refs
@@ -109,6 +112,126 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+// Check if active event is still in the list
+function isActiveEventInList(): boolean {
+  if (!props.activeEventId) return false
+  return events.value.some(e => e.id === props.activeEventId)
+}
+
+// Get the active event's position relative to the container viewport (for scroll anchoring)
+// Returns null if active event is not visible
+function getActiveEventViewportOffset(): number | null {
+  if (!props.activeEventId || !eventsContainer.value) return null
+
+  const container = eventsContainer.value
+  const activeElement = container.querySelector(`[data-event-id="${props.activeEventId}"]`) as HTMLElement
+  if (!activeElement) return null
+
+  const containerRect = container.getBoundingClientRect()
+  const elementRect = activeElement.getBoundingClientRect()
+
+  // Check if element is at least partially visible in the container
+  const isVisible = elementRect.top < containerRect.bottom && elementRect.bottom > containerRect.top
+  if (!isVisible) return null
+
+  // Return the element's position relative to the container's top
+  return elementRect.top - containerRect.top
+}
+
+// Restore the active event to its previous viewport position (scroll anchoring)
+function restoreActiveEventPosition(previousOffset: number): void {
+  if (!props.activeEventId) return
+
+  nextTick(() => {
+    const container = eventsContainer.value
+    if (!container) return
+
+    const activeElement = container.querySelector(`[data-event-id="${props.activeEventId}"]`) as HTMLElement
+    if (!activeElement) return
+
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = activeElement.getBoundingClientRect()
+
+    // Calculate current offset from container top
+    const currentOffset = elementRect.top - containerRect.top
+
+    // Adjust scroll to restore the previous offset
+    const scrollAdjustment = currentOffset - previousOffset
+    container.scrollTop = container.scrollTop + scrollAdjustment
+  })
+}
+
+// Merge new events into the existing list (upsert by ID, sort by startTimestamp, trim to MAX_EVENTS)
+// If previousViewportOffset is provided, will restore the active event to that position
+// If fromRefresh is true, events in newEvents will have their SSE-inserted status cleared (become green)
+function mergeEvents(newEvents: Event[], previousViewportOffset: number | null = null, fromRefresh = false): void {
+  // Create a map of existing events by ID for quick lookup
+  const eventMap = new Map<string, Event>()
+  for (const event of events.value) {
+    eventMap.set(event.id, event)
+  }
+
+  // Upsert new events (replace if exists, add if new)
+  for (const event of newEvents) {
+    eventMap.set(event.id, event)
+    // If from refresh, remove SSE-inserted status (event becomes green)
+    if (fromRefresh) {
+      sseInsertedIds.value.delete(event.id)
+    }
+  }
+
+  // Convert back to array and sort by startTimestamp (newest first)
+  let mergedEvents = Array.from(eventMap.values())
+  mergedEvents.sort((a, b) => {
+    return new Date(b.startTimestamp).getTime() - new Date(a.startTimestamp).getTime()
+  })
+
+  // Filter out events older than the selected time range
+  const cutoffTime = Date.now() - selectedTimeRange.value * 60 * 1000
+  mergedEvents = mergedEvents.filter(e => {
+    const eventTime = new Date(e.startTimestamp).getTime()
+    const keep = eventTime >= cutoffTime
+    // Clean up SSE-inserted tracking for removed events
+    if (!keep) {
+      sseInsertedIds.value.delete(e.id)
+    }
+    return keep
+  })
+
+  // Trim to MAX_EVENTS (remove oldest)
+  if (mergedEvents.length > MAX_EVENTS) {
+    mergedEvents.length = MAX_EVENTS
+  }
+
+  events.value = mergedEvents
+
+  // Load images and extract bounding boxes for new events
+  loadEventImages(newEvents)
+  extractEventBoundingBoxes(newEvents)
+
+  // Restore active event to its previous viewport position if it was visible
+  if (previousViewportOffset !== null) {
+    restoreActiveEventPosition(previousViewportOffset)
+  }
+}
+
+// Insert a single event from SSE (exposed for parent component)
+function insertEvent(event: Event): void {
+  // Only insert if event type matches selected types
+  if (!props.selectedTypes.includes(event.type)) {
+    return
+  }
+
+  // Get active event's viewport position BEFORE the merge
+  const viewportOffset = getActiveEventViewportOffset()
+  // Track this event as SSE-inserted (will show with blue background)
+  sseInsertedIds.value.add(event.id)
+  mergeEvents([event], viewportOffset)
+}
+
+// Expose insertEvent for parent component
+defineExpose({ insertEvent })
+
 // Fetch historic events
 async function fetchEvents(append = false) {
   if (!props.camera || props.selectedTypes.length === 0) {
@@ -145,22 +268,20 @@ async function fetchEvents(append = false) {
     nextPageToken.value = undefined
   } else {
     const newEvents = result.data.results
-    if (append) {
-      events.value = [...events.value, ...newEvents]
-    } else {
-      events.value = newEvents
-      clearImages()
-      boundingBoxesMap.value.clear()
-      // Emit event timestamps so live events can filter out duplicates
-      emit('events-refreshed', newEvents.map(e => e.startTimestamp))
-      // Scroll to top on refresh
-      nextTick(() => scrollToTop())
-    }
+
+    // Get active event's viewport position BEFORE the merge
+    const viewportOffset = getActiveEventViewportOffset()
+
+    // Merge new events into existing list (upsert by ID)
+    // fromRefresh=true clears SSE-inserted status for these events (they become green)
+    mergeEvents(newEvents, viewportOffset, true)
+
     nextPageToken.value = result.data.nextPageToken
 
-    // Load images and extract bounding boxes for the new events
-    loadEventImages(newEvents)
-    extractEventBoundingBoxes(newEvents)
+    // Scroll to top on refresh if no active event or if active event was ejected from list
+    if (!append && !isActiveEventInList()) {
+      nextTick(() => scrollToTop())
+    }
   }
 
   loading.value = false
@@ -192,6 +313,38 @@ function extractEventBoundingBoxes(eventsToProcess: Event[]) {
 // Get bounding boxes for an event
 function getBoundingBoxes(eventId: string): BoundingBox[] {
   return boundingBoxesMap.value.get(eventId) || []
+}
+
+// Check if an event was inserted via SSE (should show blue background)
+function isSseInserted(eventId: string): boolean {
+  return sseInsertedIds.value.has(eventId)
+}
+
+// Filter events to only keep those matching the selected types
+function filterEventsBySelectedTypes() {
+  if (props.selectedTypes.length === 0) {
+    events.value = []
+    sseInsertedIds.value.clear()
+    return
+  }
+
+  const selectedTypesSet = new Set(props.selectedTypes)
+  const removedEventIds = new Set<string>()
+
+  // Find events to remove
+  for (const event of events.value) {
+    if (!selectedTypesSet.has(event.type)) {
+      removedEventIds.add(event.id)
+    }
+  }
+
+  // Filter events
+  events.value = events.value.filter(e => selectedTypesSet.has(e.type))
+
+  // Clean up SSE-inserted tracking for removed events
+  for (const eventId of removedEventIds) {
+    sseInsertedIds.value.delete(eventId)
+  }
 }
 
 // Handle thumbnail hover - capture position for popup
@@ -284,13 +437,32 @@ onUnmounted(() => {
 // Initialize event type names
 fetchEventTypeNames()
 
-// Watch for camera, selected types, or time range changes
+// Watch for camera changes - clear and fetch
 watch(
-  [() => props.camera?.id, () => props.selectedTypes, selectedTimeRange],
+  () => props.camera?.id,
   () => {
+    events.value = []
+    sseInsertedIds.value.clear()
+    fetchEvents()
+  }
+)
+
+// Watch for selected types changes - filter existing events then fetch
+watch(
+  () => props.selectedTypes,
+  () => {
+    filterEventsBySelectedTypes()
     fetchEvents()
   },
   { immediate: true, deep: true }
+)
+
+// Watch for time range changes - just fetch new events
+watch(
+  selectedTimeRange,
+  () => {
+    fetchEvents()
+  }
 )
 </script>
 
@@ -322,7 +494,7 @@ watch(
           type="checkbox"
           v-model="autoRefresh"
           class="w-3 h-3 cursor-pointer accent-blue-600"
-          title="Auto-refresh every 5 minutes"
+          title="Auto-refresh every minute"
         />
       </div>
     </div>
@@ -371,16 +543,22 @@ watch(
       v-else
       ref="eventsContainer"
       class="flex-1 overflow-y-auto min-h-0 space-y-1"
+      :class="isDark ? 'scrollbar-dark' : 'scrollbar-light'"
       @scroll="handleScroll"
     >
       <div
         v-for="event in events"
         :key="event.id"
+        :data-event-id="event.id"
         class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
         :class="[
           activeEventId === event.id
-            ? (isDark ? 'border-4 bg-green-800/70 border-orange-500' : 'border-4 bg-green-200 border-orange-400')
-            : (isDark ? 'border-2 bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'border-2 bg-green-50 hover:bg-green-100 border-transparent')
+            ? (isSseInserted(event.id)
+                ? (isDark ? 'border-4 bg-blue-800/70 border-orange-500' : 'border-4 bg-blue-200 border-orange-400')
+                : (isDark ? 'border-4 bg-green-800/70 border-orange-500' : 'border-4 bg-green-200 border-orange-400'))
+            : (isSseInserted(event.id)
+                ? (isDark ? 'border-2 bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'border-2 bg-blue-50 hover:bg-blue-100 border-transparent')
+                : (isDark ? 'border-2 bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'border-2 bg-green-50 hover:bg-green-100 border-transparent'))
         ]"
         @click="handleEventClick(event)"
       >
@@ -481,5 +659,37 @@ watch(
 <style scoped>
 .historic-events-panel {
   min-width: 0; /* Allow content to shrink */
+}
+
+/* Dark mode scrollbar */
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: #374151; /* gray-700 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background: #6b7280; /* gray-500 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
+}
+
+/* Light mode scrollbar */
+.scrollbar-light::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-light::-webkit-scrollbar-track {
+  background: #f3f4f6; /* gray-100 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* gray-300 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
 }
 </style>

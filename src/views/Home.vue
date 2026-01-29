@@ -87,17 +87,17 @@ function handleEventClick(event: { cameraId: string; timestamp: string; eventTyp
 // Selected event types state (shared between panels)
 const selectedEventTypes = ref<string[]>([])
 
-// Reference to LiveEventsPanel for cross-panel communication
-const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
+// References for cross-panel communication
+const historicEventsPanelRef = ref<InstanceType<typeof HistoricEventsPanel> | null>(null)
 
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
   selectedEventTypes.value = types
 }
 
-// Handle historic events refresh - remove duplicates from live events
-function handleHistoricEventsRefreshed(eventTimestamps: string[]) {
-  liveEventsPanelRef.value?.removeEventsByTimestamps(eventTimestamps)
+// Handle SSE event from LiveEventsPanel - insert into HistoricEventsPanel
+function handleSseEvent(event: Record<string, unknown>) {
+  historicEventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof historicEventsPanelRef.value.insertEvent>[0])
 }
 
 onMounted(async () => {
@@ -193,11 +193,11 @@ onMounted(async () => {
             <!-- Historic Events Panel -->
             <div class="flex-1 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
               <HistoricEventsPanel
+                ref="historicEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
-                @events-refreshed="handleHistoricEventsRefreshed"
                 @event-clicked="handleEventClick"
               />
             </div>
@@ -205,12 +205,12 @@ onMounted(async () => {
             <!-- Live SSE Events Panel -->
             <div class="flex-1 p-3">
               <LiveEventsPanel
-                ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
                 @event-clicked="handleEventClick"
+                @sse-event="handleSseEvent"
               />
             </div>
           </div>

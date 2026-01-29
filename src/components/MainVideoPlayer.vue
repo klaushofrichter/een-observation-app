@@ -599,7 +599,7 @@ onUnmounted(() => {
             <button
               v-if="playbackEventObject"
               @click.stop="showEventDataModal = true"
-              class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors"
+              class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
               :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
               title="View event data"
             >
@@ -610,12 +610,6 @@ onUnmounted(() => {
           <div v-if="eventDuration" class="mt-1">
             <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Duration: {{ eventDuration }}</span>
           </div>
-        </div>
-
-        <!-- Location ID (if available) -->
-        <div v-if="camera.locationId">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Location ID</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
         </div>
 
         <!-- MAC Address (if available) -->
