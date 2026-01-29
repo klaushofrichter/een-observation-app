@@ -599,7 +599,7 @@ onUnmounted(() => {
             <button
               v-if="playbackEventObject"
               @click.stop="showEventDataModal = true"
-              class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors"
+              class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
               :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
               title="View event data"
             >
