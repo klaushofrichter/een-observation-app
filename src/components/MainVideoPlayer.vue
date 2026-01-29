@@ -612,12 +612,6 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Location ID (if available) -->
-        <div v-if="camera.locationId">
-          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">Location ID</label>
-          <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm mt-1 font-mono text-xs break-all">{{ camera.locationId }}</p>
-        </div>
-
         <!-- MAC Address (if available) -->
         <div v-if="camera.macAddress">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide">MAC Address</label>
