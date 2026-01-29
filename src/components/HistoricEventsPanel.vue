@@ -42,7 +42,7 @@ const sseInsertedIds = ref<Set<string>>(new Set()) // Track events inserted via 
 // Auto-refresh state
 const autoRefresh = ref(false)
 const refreshCountdown = ref(0) // seconds until next refresh
-const AUTO_REFRESH_INTERVAL = 5 * 60 // 5 minutes in seconds
+const AUTO_REFRESH_INTERVAL = 60 // 1 minute in seconds
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 // Refs
@@ -494,7 +494,7 @@ watch(
           type="checkbox"
           v-model="autoRefresh"
           class="w-3 h-3 cursor-pointer accent-blue-600"
-          title="Auto-refresh every 5 minutes"
+          title="Auto-refresh every minute"
         />
       </div>
     </div>
