@@ -1,53 +1,33 @@
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted, nextTick } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import {
   createEventSubscription,
   connectToEventSubscription,
-  deleteEventSubscription,
-  listEventTypes
+  deleteEventSubscription
 } from 'een-api-toolkit'
 import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus } from 'een-api-toolkit'
-import { useImageCache } from '@/composables/useImageCache'
-import { useEventAge } from '@/composables/useEventAge'
-import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
-import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
   camera: Camera | null
   selectedTypes: string[]
   isDark?: boolean
-  activeEventId?: string | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
   (e: 'sse-event', event: Record<string, unknown>): void
 }>()
-
-// Use shared image cache
-const { loadImage, getImage, clearImages } = useImageCache()
-
-// Use event age formatting
-const { formatAge } = useEventAge()
 
 // State
 const subscriptionId = ref<string | null>(null)
 const sseConnection = ref<SSEConnection | null>(null)
 const connectionStatus = ref<SSEConnectionStatus>('disconnected')
 const connectionError = ref<EenError | null>(null)
-const events = ref<SSEEvent[]>([])
-const eventTypeNames = ref<Map<string, string>>(new Map())
-const autoScroll = ref(true)
 const liveFeedEnabled = ref(false) // User's desired state - always reconnect when enabled
-const hoveredEventId = ref<string | null>(null)
-const boundingBoxesMap = ref<Map<string, BoundingBox[]>>(new Map())
 
 // Reconnection timer (SSE subscriptions expire after 15 minutes)
 const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes (before 15 min expiry)
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isProactiveReconnecting = false // Flag to prevent double-reconnection
-const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
-const isAtBottom = ref(false) // Track if scrolled to bottom
 
 // Debounce timer for event type changes
 const DEBOUNCE_DELAY_MS = 500 // Wait 500ms for event type changes to settle
@@ -55,12 +35,6 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // Connection guard - tracks current connection attempt to prevent races
 let connectionAttemptId = 0
-
-// Refs
-const eventsContainer = ref<HTMLElement | null>(null)
-
-// Constants
-const MAX_EVENTS = 100
 
 // Computed
 const isConnected = computed(() => connectionStatus.value === 'connected')
@@ -102,120 +76,10 @@ function toggleLiveFeed() {
   }
 }
 
-// Get human-readable event type name
-function getEventTypeName(type: string): string {
-  const name = eventTypeNames.value.get(type)
-  if (name) return name
-
-  // Fallback: parse the type string
-  const match = type.match(/een\.(\w+)Event\.v\d+/)
-  if (match) {
-    return match[1]
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  }
-  return type
-}
-
-// Format timestamp for display
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
-// Fetch event type display names
-async function fetchEventTypeNames() {
-  const result = await listEventTypes({ pageSize: 100 })
-  if (!result.error && result.data) {
-    const nameMap = new Map<string, string>()
-    for (const et of result.data.results) {
-      nameMap.set(et.type, et.name)
-    }
-    eventTypeNames.value = nameMap
-  }
-}
-
-// Scroll to top (newest events)
-function scrollToTop() {
-  if (eventsContainer.value && autoScroll.value) {
-    eventsContainer.value.scrollTop = 0
-  }
-}
-
-// Handle new SSE event
+// Handle new SSE event - just emit to parent
 function handleEvent(event: SSEEvent) {
   // Emit SSE event to parent for insertion into historic events
   emit('sse-event', event as unknown as Record<string, unknown>)
-
-  // Check for duplicates by event ID in local list
-  const isDuplicate = events.value.some(e => e.id === event.id)
-  if (isDuplicate) {
-    return // Skip duplicate events in local list
-  }
-
-  // Add event to the beginning (newest first)
-  events.value.unshift(event)
-
-  // Load thumbnail for the event
-  if (event.actorType === 'camera') {
-    loadImage(event.id, event.actorId, event.startTimestamp)
-  }
-
-  // Extract bounding boxes if present
-  const boxes = extractBoundingBoxes(event)
-  if (boxes.length > 0) {
-    boundingBoxesMap.value.set(event.id, boxes)
-  }
-
-  // Trim to max events
-  if (events.value.length > MAX_EVENTS) {
-    events.value = events.value.slice(0, MAX_EVENTS)
-  }
-
-  // Auto-scroll to show new event
-  nextTick(() => {
-    scrollToTop()
-  })
-}
-
-// Get image for an event
-function getEventImage(event: SSEEvent): string | null {
-  return getImage(event.id)
-}
-
-// Get bounding boxes for an event
-function getBoundingBoxes(eventId: string): BoundingBox[] {
-  return boundingBoxesMap.value.get(eventId) || []
-}
-
-// Handle thumbnail hover - capture position for popup
-function handleThumbnailHover(event: SSEEvent, mouseEvent: MouseEvent) {
-  hoveredEventId.value = event.id
-  const target = mouseEvent.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  hoverPosition.value = {
-    bottom: rect.bottom, // Align bottom of preview with bottom of thumbnail
-    right: rect.left - 10 // Position preview 10px to the left of thumbnail
-  }
-}
-
-// Clear hover state
-function clearHover() {
-  hoveredEventId.value = null
-  hoverPosition.value = null
-}
-
-// Handle event card click - emit event for playback
-function handleEventClick(event: SSEEvent) {
-  emit('event-clicked', {
-    cameraId: event.actorId,
-    timestamp: event.startTimestamp,
-    eventType: getEventTypeName(event.type),
-    eventId: event.id,
-    boundingBoxes: getBoundingBoxes(event.id),
-    eventObject: event as unknown as Record<string, unknown>
-  })
 }
 
 // Clear the reconnect timer
@@ -324,9 +188,6 @@ async function connect() {
 
   connectionStatus.value = 'connecting'
   connectionError.value = null
-  events.value = []
-  clearImages() // Clear images to prevent showing thumbnails from previous camera
-  boundingBoxesMap.value.clear() // Clear bounding boxes from previous camera
 
   await createAndConnectSubscription(currentAttemptId)
 }
@@ -436,42 +297,6 @@ async function disconnect() {
   connectionError.value = null
 }
 
-// Clear events
-function clearEvents() {
-  events.value = []
-  clearImages()
-  boundingBoxesMap.value.clear()
-}
-
-// Filter events to only keep those matching the selected types
-function filterEventsBySelectedTypes() {
-  if (props.selectedTypes.length === 0) {
-    events.value = []
-    return
-  }
-
-  const selectedTypesSet = new Set(props.selectedTypes)
-  events.value = events.value.filter(e => selectedTypesSet.has(e.type))
-}
-
-// Handle scroll to detect manual scrolling and bottom position
-function handleScroll() {
-  if (!eventsContainer.value) return
-
-  const container = eventsContainer.value
-
-  // If user scrolls down (away from top), disable auto-scroll
-  // If user scrolls back to top, re-enable auto-scroll
-  autoScroll.value = container.scrollTop < 10
-
-  // Check if at bottom (within 20px threshold)
-  const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 20
-  isAtBottom.value = atBottom && events.value.length >= MAX_EVENTS
-}
-
-// Fetch event type names on mount
-fetchEventTypeNames()
-
 // Debounced reconnection handler - only reconnects if liveFeedEnabled
 async function debouncedReconnect(cameraId: string, types: string[]) {
   // Clear any existing debounce timer
@@ -510,11 +335,6 @@ watch(
       return
     }
 
-    // Filter existing events immediately when types change
-    if (typesChanged) {
-      filterEventsBySelectedTypes()
-    }
-
     // Use debounced reconnection
     if (newCameraId && newTypes) {
       debouncedReconnect(newCameraId, newTypes)
@@ -530,24 +350,23 @@ watch(
 onUnmounted(async () => {
   await disconnect()
 })
+
+// Expose toggle function and state for parent component
+defineExpose({
+  toggleLiveFeed,
+  feedButtonLabel,
+  feedButtonClass,
+  canConnect,
+  isConnected,
+  isConnecting,
+  connectionError
+})
 </script>
 
 <template>
   <div class="live-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Live Events</h3>
-      <div class="flex items-center gap-1">
-        <!-- Live Feed Toggle Button -->
-        <button
-          @click="toggleLiveFeed"
-          :disabled="!canConnect && !isConnected && !isConnecting"
-          class="px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="feedButtonClass"
-          :title="isConnected ? 'Click to stop live feed' : isConnecting ? 'Click to cancel' : 'Click to start live feed'"
-        >
-          {{ feedButtonLabel }}
-        </button>
-      </div>
     </div>
 
     <!-- Error State -->
@@ -555,159 +374,25 @@ onUnmounted(async () => {
       {{ connectionError.message }}
     </div>
 
-    <!-- No Camera Selected -->
-    <div v-if="!camera" class="flex-1 flex items-center justify-center">
+    <!-- Placeholder for future functionality -->
+    <div class="flex-1 flex items-center justify-center">
       <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-        Select a camera to stream live events
+        <template v-if="!camera">
+          Select a camera
+        </template>
+        <template v-else-if="selectedTypes.length === 0">
+          Select event types
+        </template>
+        <template v-else-if="isConnected">
+          Live feed active
+        </template>
+        <template v-else-if="isConnecting">
+          Connecting...
+        </template>
+        <template v-else>
+          Live feed off
+        </template>
       </div>
-    </div>
-
-    <!-- No Types Selected -->
-    <div v-else-if="selectedTypes.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-        Select event types to stream
-      </div>
-    </div>
-
-    <!-- Not Connected -->
-    <div v-else-if="!isConnected && !isConnecting && events.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs text-center" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-        Click Connect to start<br/>streaming live events
-      </div>
-    </div>
-
-    <!-- Connecting -->
-    <div v-else-if="isConnecting && events.length === 0" class="flex-1 flex items-center justify-center">
-      <div class="text-xs flex items-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
-        <svg class="animate-spin h-3 w-3 mr-1" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Connecting...
-      </div>
-    </div>
-
-    <!-- Events List -->
-    <div
-      v-else
-      ref="eventsContainer"
-      class="flex-1 overflow-y-auto min-h-0 space-y-1"
-      :class="isDark ? 'scrollbar-dark' : 'scrollbar-light'"
-      @scroll="handleScroll"
-    >
-      <!-- Waiting for events -->
-      <div v-if="events.length === 0 && isConnected" class="text-xs text-center py-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-        Waiting for new live events...
-      </div>
-
-      <!-- Event Items -->
-      <div
-        v-for="event in events"
-        :key="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded animate-fade-in cursor-pointer"
-        :class="[
-          activeEventId === event.id
-            ? (isDark ? 'border-4 bg-blue-800/70 border-orange-500' : 'border-4 bg-blue-200 border-orange-400')
-            : (isDark ? 'border-2 bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'border-2 bg-blue-50 hover:bg-blue-100 border-transparent')
-        ]"
-        @click="handleEventClick(event)"
-      >
-        <!-- Thumbnail -->
-        <div
-          class="w-12 h-8 rounded overflow-hidden flex-shrink-0 relative"
-          :class="isDark ? 'bg-gray-700' : 'bg-gray-200'"
-          @mouseenter="handleThumbnailHover(event, $event)"
-          @mouseleave="clearHover"
-        >
-          <img
-            v-if="getEventImage(event)"
-            :src="getEventImage(event) || ''"
-            :alt="event.type"
-            class="w-full h-full object-cover cursor-pointer"
-          />
-          <BoundingBoxOverlay
-            v-if="getEventImage(event) && getBoundingBoxes(event.id).length > 0"
-            :boxes="getBoundingBoxes(event.id)"
-            :isDark="isDark"
-          />
-          <div v-if="!getEventImage(event)" class="w-full h-full flex items-center justify-center">
-            <svg class="w-4 h-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-        </div>
-
-        <!-- Event Info -->
-        <div class="flex-1 min-w-0">
-          <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ getEventTypeName(event.type) }}
-          </div>
-          <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-            <span>{{ formatTimestamp(event.startTimestamp) }}</span>
-            <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(event.startTimestamp) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Hover preview popup (teleported to body, positioned to the left of thumbnail) -->
-      <Teleport to="body">
-        <div
-          v-if="hoveredEventId && hoverPosition && getImage(hoveredEventId)"
-          class="fixed z-[9999] rounded-lg shadow-xl p-2 pointer-events-none"
-          :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
-          :style="{
-            top: hoverPosition.bottom + 'px',
-            left: hoverPosition.right + 'px',
-            transform: 'translateX(-100%) translateY(-100%)'
-          }"
-        >
-          <div class="relative">
-            <img
-              :src="getImage(hoveredEventId) || ''"
-              alt="Event preview"
-              class="max-w-[384px] h-auto rounded"
-            />
-            <BoundingBoxOverlay
-              v-if="getBoundingBoxes(hoveredEventId).length > 0"
-              :boxes="getBoundingBoxes(hoveredEventId)"
-              :showLabels="true"
-              :isDark="isDark"
-            />
-          </div>
-        </div>
-      </Teleport>
-    </div>
-
-    <!-- Footer -->
-    <div v-if="events.length > 0" class="flex items-center justify-between text-xs mt-1 flex-shrink-0 pt-1 border-t" :class="isDark ? 'text-gray-500 border-gray-700' : 'text-gray-400 border-gray-100'">
-      <span>{{ events.length }} event{{ events.length !== 1 ? 's' : '' }}</span>
-      <button
-        @click="clearEvents"
-        class="transition-colors"
-        :class="isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'"
-        title="Clear events"
-      >
-        Clear
-      </button>
-    </div>
-
-    <!-- Auto-scroll indicator -->
-    <div
-      v-if="events.length > 0 && !autoScroll"
-      class="text-xs text-center py-1 cursor-pointer"
-      :class="isDark ? 'text-gray-500 hover:text-blue-400' : 'text-gray-400 hover:text-blue-600'"
-      @click="autoScroll = true; scrollToTop()"
-    >
-      Click to resume auto-scroll
-    </div>
-
-    <!-- At bottom / max events indicator -->
-    <div
-      v-if="isAtBottom"
-      class="text-xs text-center py-1 rounded"
-      :class="isDark ? 'text-orange-400 bg-orange-900/30' : 'text-orange-500 bg-orange-50'"
-    >
-      Reached max events. Refresh Historic Events to archive.
     </div>
   </div>
 </template>

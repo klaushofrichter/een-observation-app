@@ -89,6 +89,7 @@ const selectedEventTypes = ref<string[]>([])
 
 // References for cross-panel communication
 const historicEventsPanelRef = ref<InstanceType<typeof HistoricEventsPanel> | null>(null)
+const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
 
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
@@ -198,13 +199,18 @@ onMounted(async () => {
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
+                :live-feed-button-label="liveEventsPanelRef?.feedButtonLabel"
+                :live-feed-button-class="liveEventsPanelRef?.feedButtonClass"
+                :live-feed-can-toggle="liveEventsPanelRef?.canConnect || liveEventsPanelRef?.isConnected || liveEventsPanelRef?.isConnecting"
                 @event-clicked="handleEventClick"
+                @toggle-live-feed="liveEventsPanelRef?.toggleLiveFeed()"
               />
             </div>
 
             <!-- Live SSE Events Panel -->
             <div class="flex-1 p-3">
               <LiveEventsPanel
+                ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"

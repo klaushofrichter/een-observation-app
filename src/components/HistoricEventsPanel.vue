@@ -12,10 +12,14 @@ const props = defineProps<{
   selectedTypes: string[]
   isDark?: boolean
   activeEventId?: string | null
+  liveFeedButtonLabel?: string
+  liveFeedButtonClass?: string
+  liveFeedCanToggle?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
+  (e: 'toggle-live-feed'): void
 }>()
 
 // Use shared image cache
@@ -471,6 +475,18 @@ watch(
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Historic Events</h3>
       <div class="flex items-center gap-2">
+        <!-- Live Feed Toggle Button -->
+        <button
+          v-if="liveFeedButtonLabel"
+          @click="emit('toggle-live-feed')"
+          :disabled="!liveFeedCanToggle"
+          class="px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="liveFeedButtonClass"
+          title="Toggle live event feed"
+        >
+          {{ liveFeedButtonLabel }}
+        </button>
+
         <select
           v-model="selectedTimeRange"
           class="text-xs rounded px-1 py-0.5 focus:outline-none cursor-pointer"
@@ -484,7 +500,7 @@ watch(
           @click="fetchEvents()"
           :disabled="loading"
           class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px]"
-          title="Refresh events and move matching Live Events here"
+          title="Refresh events"
         >
           {{ refreshButtonLabel }}
         </button>
