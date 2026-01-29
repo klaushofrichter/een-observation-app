@@ -335,6 +335,31 @@ function filterEventsBySelectedTypes() {
   }
 }
 
+// Filter events to only keep those within the selected time range
+function filterEventsByTimeRange() {
+  const cutoffTime = new Date(Date.now() - selectedTimeRange.value * 60 * 1000).getTime()
+  const removedEventIds = new Set<string>()
+
+  // Find events to remove (older than cutoff)
+  for (const event of events.value) {
+    const eventTime = new Date(event.startTimestamp).getTime()
+    if (eventTime < cutoffTime) {
+      removedEventIds.add(event.id)
+    }
+  }
+
+  // Filter events
+  events.value = events.value.filter(e => {
+    const eventTime = new Date(e.startTimestamp).getTime()
+    return eventTime >= cutoffTime
+  })
+
+  // Clean up SSE-inserted tracking for removed events
+  for (const eventId of removedEventIds) {
+    sseInsertedIds.value.delete(eventId)
+  }
+}
+
 // Handle thumbnail hover - capture position for popup
 function handleThumbnailHover(event: Event, mouseEvent: MouseEvent) {
   hoveredEventId.value = event.id
@@ -445,10 +470,11 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Watch for time range changes - just fetch (existing events still valid for their types)
+// Watch for time range changes - filter old events then fetch
 watch(
   selectedTimeRange,
   () => {
+    filterEventsByTimeRange()
     fetchEvents()
   }
 )
