@@ -21,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
+  (e: 'sse-event', event: Record<string, unknown>): void
 }>()
 
 // Use shared image cache
@@ -111,10 +112,13 @@ function scrollToTop() {
 
 // Handle new SSE event
 function handleEvent(event: SSEEvent) {
-  // Check for duplicates by event ID
+  // Emit SSE event to parent for insertion into historic events
+  emit('sse-event', event as unknown as Record<string, unknown>)
+
+  // Check for duplicates by event ID in local list
   const isDuplicate = events.value.some(e => e.id === event.id)
   if (isDuplicate) {
-    return // Skip duplicate events
+    return // Skip duplicate events in local list
   }
 
   // Add event to the beginning (newest first)
@@ -406,18 +410,6 @@ function clearEvents() {
   boundingBoxesMap.value.clear()
 }
 
-// Remove events by timestamps (called when historic events are refreshed)
-function removeEventsByTimestamps(timestampsToRemove: string[]) {
-  if (timestampsToRemove.length === 0) return
-  const timestampsSet = new Set(timestampsToRemove)
-  events.value = events.value.filter(event => !timestampsSet.has(event.startTimestamp))
-}
-
-// Expose methods to parent
-defineExpose({
-  removeEventsByTimestamps
-})
-
 // Handle scroll to detect manual scrolling and bottom position
 function handleScroll() {
   if (!eventsContainer.value) return
@@ -579,6 +571,7 @@ onUnmounted(async () => {
       v-else
       ref="eventsContainer"
       class="flex-1 overflow-y-auto min-h-0 space-y-1"
+      :class="isDark ? 'scrollbar-dark' : 'scrollbar-light'"
       @scroll="handleScroll"
     >
       <!-- Waiting for events -->
@@ -716,5 +709,37 @@ onUnmounted(async () => {
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+/* Dark mode scrollbar */
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: #374151; /* gray-700 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background: #6b7280; /* gray-500 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
+}
+
+/* Light mode scrollbar */
+.scrollbar-light::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-light::-webkit-scrollbar-track {
+  background: #f3f4f6; /* gray-100 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* gray-300 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
 }
 </style>

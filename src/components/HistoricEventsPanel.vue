@@ -15,15 +15,17 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'events-refreshed', eventTimestamps: string[]): void
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
 }>()
 
 // Use shared image cache
-const { loadImage, getImage, clearImages } = useImageCache()
+const { loadImage, getImage } = useImageCache()
 
 // Use event age formatting
 const { formatAge } = useEventAge()
+
+// Constants
+const MAX_EVENTS = 500 // Maximum number of events to store
 
 // State
 const loading = ref(false)
@@ -109,6 +111,102 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+// Check if active event is still in the list
+function isActiveEventInList(): boolean {
+  if (!props.activeEventId) return false
+  return events.value.some(e => e.id === props.activeEventId)
+}
+
+// Get the active event's position relative to the container viewport (for scroll anchoring)
+// Returns null if active event is not visible
+function getActiveEventViewportOffset(): number | null {
+  if (!props.activeEventId || !eventsContainer.value) return null
+
+  const container = eventsContainer.value
+  const activeElement = container.querySelector(`[data-event-id="${props.activeEventId}"]`) as HTMLElement
+  if (!activeElement) return null
+
+  const containerRect = container.getBoundingClientRect()
+  const elementRect = activeElement.getBoundingClientRect()
+
+  // Check if element is at least partially visible in the container
+  const isVisible = elementRect.top < containerRect.bottom && elementRect.bottom > containerRect.top
+  if (!isVisible) return null
+
+  // Return the element's position relative to the container's top
+  return elementRect.top - containerRect.top
+}
+
+// Restore the active event to its previous viewport position (scroll anchoring)
+function restoreActiveEventPosition(previousOffset: number): void {
+  if (!props.activeEventId) return
+
+  nextTick(() => {
+    const container = eventsContainer.value
+    if (!container) return
+
+    const activeElement = container.querySelector(`[data-event-id="${props.activeEventId}"]`) as HTMLElement
+    if (!activeElement) return
+
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = activeElement.getBoundingClientRect()
+
+    // Calculate current offset from container top
+    const currentOffset = elementRect.top - containerRect.top
+
+    // Adjust scroll to restore the previous offset
+    const scrollAdjustment = currentOffset - previousOffset
+    container.scrollTop = container.scrollTop + scrollAdjustment
+  })
+}
+
+// Merge new events into the existing list (upsert by ID, sort by startTimestamp, trim to MAX_EVENTS)
+// If previousViewportOffset is provided, will restore the active event to that position
+function mergeEvents(newEvents: Event[], previousViewportOffset: number | null = null): void {
+  // Create a map of existing events by ID for quick lookup
+  const eventMap = new Map<string, Event>()
+  for (const event of events.value) {
+    eventMap.set(event.id, event)
+  }
+
+  // Upsert new events (replace if exists, add if new)
+  for (const event of newEvents) {
+    eventMap.set(event.id, event)
+  }
+
+  // Convert back to array and sort by startTimestamp (newest first)
+  const mergedEvents = Array.from(eventMap.values())
+  mergedEvents.sort((a, b) => {
+    return new Date(b.startTimestamp).getTime() - new Date(a.startTimestamp).getTime()
+  })
+
+  // Trim to MAX_EVENTS (remove oldest)
+  if (mergedEvents.length > MAX_EVENTS) {
+    mergedEvents.length = MAX_EVENTS
+  }
+
+  events.value = mergedEvents
+
+  // Load images and extract bounding boxes for new events
+  loadEventImages(newEvents)
+  extractEventBoundingBoxes(newEvents)
+
+  // Restore active event to its previous viewport position if it was visible
+  if (previousViewportOffset !== null) {
+    restoreActiveEventPosition(previousViewportOffset)
+  }
+}
+
+// Insert a single event from SSE (exposed for parent component)
+function insertEvent(event: Event): void {
+  // Get active event's viewport position BEFORE the merge
+  const viewportOffset = getActiveEventViewportOffset()
+  mergeEvents([event], viewportOffset)
+}
+
+// Expose insertEvent for parent component
+defineExpose({ insertEvent })
+
 // Fetch historic events
 async function fetchEvents(append = false) {
   if (!props.camera || props.selectedTypes.length === 0) {
@@ -145,22 +243,19 @@ async function fetchEvents(append = false) {
     nextPageToken.value = undefined
   } else {
     const newEvents = result.data.results
-    if (append) {
-      events.value = [...events.value, ...newEvents]
-    } else {
-      events.value = newEvents
-      clearImages()
-      boundingBoxesMap.value.clear()
-      // Emit event timestamps so live events can filter out duplicates
-      emit('events-refreshed', newEvents.map(e => e.startTimestamp))
-      // Scroll to top on refresh
-      nextTick(() => scrollToTop())
-    }
+
+    // Get active event's viewport position BEFORE the merge
+    const viewportOffset = getActiveEventViewportOffset()
+
+    // Merge new events into existing list (upsert by ID)
+    mergeEvents(newEvents, viewportOffset)
+
     nextPageToken.value = result.data.nextPageToken
 
-    // Load images and extract bounding boxes for the new events
-    loadEventImages(newEvents)
-    extractEventBoundingBoxes(newEvents)
+    // Scroll to top on refresh if no active event or if active event was ejected from list
+    if (!append && !isActiveEventInList()) {
+      nextTick(() => scrollToTop())
+    }
   }
 
   loading.value = false
@@ -371,11 +466,13 @@ watch(
       v-else
       ref="eventsContainer"
       class="flex-1 overflow-y-auto min-h-0 space-y-1"
+      :class="isDark ? 'scrollbar-dark' : 'scrollbar-light'"
       @scroll="handleScroll"
     >
       <div
         v-for="event in events"
         :key="event.id"
+        :data-event-id="event.id"
         class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
         :class="[
           activeEventId === event.id
@@ -481,5 +578,37 @@ watch(
 <style scoped>
 .historic-events-panel {
   min-width: 0; /* Allow content to shrink */
+}
+
+/* Dark mode scrollbar */
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: #374151; /* gray-700 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background: #6b7280; /* gray-500 */
+  border-radius: 4px;
+}
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
+}
+
+/* Light mode scrollbar */
+.scrollbar-light::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-light::-webkit-scrollbar-track {
+  background: #f3f4f6; /* gray-100 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* gray-300 */
+  border-radius: 4px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
 }
 </style>
