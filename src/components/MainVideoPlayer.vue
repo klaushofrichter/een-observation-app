@@ -125,6 +125,41 @@ const formattedPlaybackTimestamp = computed(() => {
   })
 })
 
+// Calculate event duration from startTimestamp and endTimestamp
+const eventDuration = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  const startTimestamp = props.playbackEventObject.startTimestamp as string | undefined
+  const endTimestamp = props.playbackEventObject.endTimestamp as string | undefined
+
+  if (!startTimestamp || !endTimestamp) return null
+
+  const startMs = new Date(startTimestamp).getTime()
+  const endMs = new Date(endTimestamp).getTime()
+  const diffMs = endMs - startMs
+
+  // Return null if timestamps are the same or invalid
+  if (diffMs <= 0) return null
+
+  const seconds = Math.floor(diffMs / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (seconds < 60) {
+    return `${seconds}s`
+  } else if (minutes < 60) {
+    const remainingSeconds = seconds % 60
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  } else if (hours < 24) {
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
+  } else {
+    const remainingHours = hours % 24
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
+  }
+})
+
 // Handle event card click - seek to timestamp and toggle play/pause
 function handleEventCardClick() {
   const video = hlsPlayer.videoRef.value
@@ -534,6 +569,10 @@ onUnmounted(() => {
             >
               i
             </button>
+          </div>
+          <!-- Event Duration -->
+          <div v-if="eventDuration" class="mt-1">
+            <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Duration: {{ eventDuration }}</span>
           </div>
         </div>
 
