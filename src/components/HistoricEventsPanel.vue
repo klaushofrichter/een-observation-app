@@ -37,6 +37,7 @@ const hoveredEventId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 const isAtTop = ref(true)
 const boundingBoxesMap = ref<Map<string, BoundingBox[]>>(new Map())
+const sseInsertedIds = ref<Set<string>>(new Set()) // Track events inserted via SSE (shown with blue background)
 
 // Auto-refresh state
 const autoRefresh = ref(false)
@@ -162,7 +163,8 @@ function restoreActiveEventPosition(previousOffset: number): void {
 
 // Merge new events into the existing list (upsert by ID, sort by startTimestamp, trim to MAX_EVENTS)
 // If previousViewportOffset is provided, will restore the active event to that position
-function mergeEvents(newEvents: Event[], previousViewportOffset: number | null = null): void {
+// If fromRefresh is true, events in newEvents will have their SSE-inserted status cleared (become green)
+function mergeEvents(newEvents: Event[], previousViewportOffset: number | null = null, fromRefresh = false): void {
   // Create a map of existing events by ID for quick lookup
   const eventMap = new Map<string, Event>()
   for (const event of events.value) {
@@ -172,6 +174,10 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
   // Upsert new events (replace if exists, add if new)
   for (const event of newEvents) {
     eventMap.set(event.id, event)
+    // If from refresh, remove SSE-inserted status (event becomes green)
+    if (fromRefresh) {
+      sseInsertedIds.value.delete(event.id)
+    }
   }
 
   // Convert back to array and sort by startTimestamp (newest first)
@@ -201,6 +207,8 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
 function insertEvent(event: Event): void {
   // Get active event's viewport position BEFORE the merge
   const viewportOffset = getActiveEventViewportOffset()
+  // Track this event as SSE-inserted (will show with blue background)
+  sseInsertedIds.value.add(event.id)
   mergeEvents([event], viewportOffset)
 }
 
@@ -248,7 +256,8 @@ async function fetchEvents(append = false) {
     const viewportOffset = getActiveEventViewportOffset()
 
     // Merge new events into existing list (upsert by ID)
-    mergeEvents(newEvents, viewportOffset)
+    // fromRefresh=true clears SSE-inserted status for these events (they become green)
+    mergeEvents(newEvents, viewportOffset, true)
 
     nextPageToken.value = result.data.nextPageToken
 
@@ -287,6 +296,11 @@ function extractEventBoundingBoxes(eventsToProcess: Event[]) {
 // Get bounding boxes for an event
 function getBoundingBoxes(eventId: string): BoundingBox[] {
   return boundingBoxesMap.value.get(eventId) || []
+}
+
+// Check if an event was inserted via SSE (should show blue background)
+function isSseInserted(eventId: string): boolean {
+  return sseInsertedIds.value.has(eventId)
 }
 
 // Handle thumbnail hover - capture position for popup
@@ -476,8 +490,12 @@ watch(
         class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
         :class="[
           activeEventId === event.id
-            ? (isDark ? 'border-4 bg-green-800/70 border-orange-500' : 'border-4 bg-green-200 border-orange-400')
-            : (isDark ? 'border-2 bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'border-2 bg-green-50 hover:bg-green-100 border-transparent')
+            ? (isSseInserted(event.id)
+                ? (isDark ? 'border-4 bg-blue-800/70 border-orange-500' : 'border-4 bg-blue-200 border-orange-400')
+                : (isDark ? 'border-4 bg-green-800/70 border-orange-500' : 'border-4 bg-green-200 border-orange-400'))
+            : (isSseInserted(event.id)
+                ? (isDark ? 'border-2 bg-blue-900/30 hover:bg-blue-900/50 border-transparent' : 'border-2 bg-blue-50 hover:bg-blue-100 border-transparent')
+                : (isDark ? 'border-2 bg-green-900/30 hover:bg-green-900/50 border-transparent' : 'border-2 bg-green-50 hover:bg-green-100 border-transparent'))
         ]"
         @click="handleEventClick(event)"
       >
