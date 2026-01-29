@@ -410,6 +410,17 @@ function clearEvents() {
   boundingBoxesMap.value.clear()
 }
 
+// Filter events to only keep those matching the selected types
+function filterEventsBySelectedTypes() {
+  if (props.selectedTypes.length === 0) {
+    events.value = []
+    return
+  }
+
+  const selectedTypesSet = new Set(props.selectedTypes)
+  events.value = events.value.filter(e => selectedTypesSet.has(e.type))
+}
+
 // Handle scroll to detect manual scrolling and bottom position
 function handleScroll() {
   if (!eventsContainer.value) return
@@ -464,6 +475,11 @@ watch(
     // Only act if something actually changed
     if (!cameraChanged && !typesChanged) {
       return
+    }
+
+    // Filter existing events immediately when types change
+    if (typesChanged) {
+      filterEventsBySelectedTypes()
     }
 
     // Use debounced reconnection

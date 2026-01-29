@@ -205,6 +205,11 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
 
 // Insert a single event from SSE (exposed for parent component)
 function insertEvent(event: Event): void {
+  // Only insert if event type matches selected types
+  if (!props.selectedTypes.includes(event.type)) {
+    return
+  }
+
   // Get active event's viewport position BEFORE the merge
   const viewportOffset = getActiveEventViewportOffset()
   // Track this event as SSE-inserted (will show with blue background)
@@ -303,6 +308,33 @@ function isSseInserted(eventId: string): boolean {
   return sseInsertedIds.value.has(eventId)
 }
 
+// Filter events to only keep those matching the selected types
+function filterEventsBySelectedTypes() {
+  if (props.selectedTypes.length === 0) {
+    events.value = []
+    sseInsertedIds.value.clear()
+    return
+  }
+
+  const selectedTypesSet = new Set(props.selectedTypes)
+  const removedEventIds = new Set<string>()
+
+  // Find events to remove
+  for (const event of events.value) {
+    if (!selectedTypesSet.has(event.type)) {
+      removedEventIds.add(event.id)
+    }
+  }
+
+  // Filter events
+  events.value = events.value.filter(e => selectedTypesSet.has(e.type))
+
+  // Clean up SSE-inserted tracking for removed events
+  for (const eventId of removedEventIds) {
+    sseInsertedIds.value.delete(eventId)
+  }
+}
+
 // Handle thumbnail hover - capture position for popup
 function handleThumbnailHover(event: Event, mouseEvent: MouseEvent) {
   hoveredEventId.value = event.id
@@ -393,13 +425,32 @@ onUnmounted(() => {
 // Initialize event type names
 fetchEventTypeNames()
 
-// Watch for camera, selected types, or time range changes
+// Watch for camera changes - clear and fetch
 watch(
-  [() => props.camera?.id, () => props.selectedTypes, selectedTimeRange],
+  () => props.camera?.id,
   () => {
+    events.value = []
+    sseInsertedIds.value.clear()
+    fetchEvents()
+  }
+)
+
+// Watch for selected types changes - filter existing events then fetch
+watch(
+  () => props.selectedTypes,
+  () => {
+    filterEventsBySelectedTypes()
     fetchEvents()
   },
   { immediate: true, deep: true }
+)
+
+// Watch for time range changes - just fetch (existing events still valid for their types)
+watch(
+  selectedTimeRange,
+  () => {
+    fetchEvents()
+  }
 )
 </script>
 
