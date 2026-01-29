@@ -181,9 +181,21 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
   }
 
   // Convert back to array and sort by startTimestamp (newest first)
-  const mergedEvents = Array.from(eventMap.values())
+  let mergedEvents = Array.from(eventMap.values())
   mergedEvents.sort((a, b) => {
     return new Date(b.startTimestamp).getTime() - new Date(a.startTimestamp).getTime()
+  })
+
+  // Filter out events older than the selected time range
+  const cutoffTime = Date.now() - selectedTimeRange.value * 60 * 1000
+  mergedEvents = mergedEvents.filter(e => {
+    const eventTime = new Date(e.startTimestamp).getTime()
+    const keep = eventTime >= cutoffTime
+    // Clean up SSE-inserted tracking for removed events
+    if (!keep) {
+      sseInsertedIds.value.delete(e.id)
+    }
+    return keep
   })
 
   // Trim to MAX_EVENTS (remove oldest)
@@ -335,31 +347,6 @@ function filterEventsBySelectedTypes() {
   }
 }
 
-// Filter events to only keep those within the selected time range
-function filterEventsByTimeRange() {
-  const cutoffTime = new Date(Date.now() - selectedTimeRange.value * 60 * 1000).getTime()
-  const removedEventIds = new Set<string>()
-
-  // Find events to remove (older than cutoff)
-  for (const event of events.value) {
-    const eventTime = new Date(event.startTimestamp).getTime()
-    if (eventTime < cutoffTime) {
-      removedEventIds.add(event.id)
-    }
-  }
-
-  // Filter events
-  events.value = events.value.filter(e => {
-    const eventTime = new Date(e.startTimestamp).getTime()
-    return eventTime >= cutoffTime
-  })
-
-  // Clean up SSE-inserted tracking for removed events
-  for (const eventId of removedEventIds) {
-    sseInsertedIds.value.delete(eventId)
-  }
-}
-
 // Handle thumbnail hover - capture position for popup
 function handleThumbnailHover(event: Event, mouseEvent: MouseEvent) {
   hoveredEventId.value = event.id
@@ -470,11 +457,10 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Watch for time range changes - filter old events then fetch
+// Watch for time range changes - just fetch new events
 watch(
   selectedTimeRange,
   () => {
-    filterEventsByTimeRange()
     fetchEvents()
   }
 )
