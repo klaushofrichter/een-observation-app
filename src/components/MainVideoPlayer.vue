@@ -40,6 +40,36 @@ const isMounted = ref(true)
 
 // HLS playback state
 const isHlsPlaying = ref(true) // Assume playing initially since autoplay is enabled
+const currentVideoTime = ref(0) // Track current video time for bounding box display
+
+// Calculate event end offset from event object timestamps
+const eventEndOffset = computed(() => {
+  if (!props.playbackEventObject) return 0
+
+  const startTimestamp = props.playbackEventObject.startTimestamp as string | undefined
+  const endTimestamp = props.playbackEventObject.endTimestamp as string | undefined
+
+  if (!startTimestamp || !endTimestamp) return hlsPlayer.eventStartOffset.value
+
+  const startMs = new Date(startTimestamp).getTime()
+  const endMs = new Date(endTimestamp).getTime()
+  const durationSeconds = (endMs - startMs) / 1000
+
+  // Event end offset = event start offset + duration
+  return hlsPlayer.eventStartOffset.value + durationSeconds
+})
+
+// Check if video is within event time range (between start and end timestamps)
+const BOUNDING_BOX_TOLERANCE = 0.25 // seconds tolerance at boundaries
+const isWithinEventTimeRange = computed(() => {
+  const startOffset = hlsPlayer.eventStartOffset.value
+  const endOffset = eventEndOffset.value
+  const currentTime = currentVideoTime.value
+
+  // Check if current time is within the event range (with tolerance at boundaries)
+  return currentTime >= (startOffset - BOUNDING_BOX_TOLERANCE) &&
+         currentTime <= (endOffset + BOUNDING_BOX_TOLERANCE)
+})
 
 // Event data modal state
 const showEventDataModal = ref(false)
@@ -125,6 +155,41 @@ const formattedPlaybackTimestamp = computed(() => {
   })
 })
 
+// Calculate event duration from startTimestamp and endTimestamp
+const eventDuration = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  const startTimestamp = props.playbackEventObject.startTimestamp as string | undefined
+  const endTimestamp = props.playbackEventObject.endTimestamp as string | undefined
+
+  if (!startTimestamp || !endTimestamp) return null
+
+  const startMs = new Date(startTimestamp).getTime()
+  const endMs = new Date(endTimestamp).getTime()
+  const diffMs = endMs - startMs
+
+  // Return null if timestamps are the same or invalid
+  if (diffMs <= 0) return null
+
+  const seconds = Math.floor(diffMs / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (seconds < 60) {
+    return `${seconds}s`
+  } else if (minutes < 60) {
+    const remainingSeconds = seconds % 60
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`
+  } else if (hours < 24) {
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
+  } else {
+    const remainingHours = hours % 24
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`
+  }
+})
+
 // Handle event card click - seek to timestamp and toggle play/pause
 function handleEventCardClick() {
   const video = hlsPlayer.videoRef.value
@@ -141,6 +206,7 @@ function handleEventCardClick() {
     } else {
       video.pause()
       isHlsPlaying.value = false
+      currentVideoTime.value = video.currentTime
     }
   }
 }
@@ -155,6 +221,11 @@ function setupVideoEventListeners() {
   })
   video.addEventListener('pause', () => {
     isHlsPlaying.value = false
+    currentVideoTime.value = video.currentTime
+  })
+  // Track video position continuously for bounding box display
+  video.addEventListener('timeupdate', () => {
+    currentVideoTime.value = video.currentTime
   })
 }
 
@@ -443,9 +514,9 @@ onUnmounted(() => {
             muted
             playsinline
           />
-          <!-- Bounding Box Overlay (shown only when paused) -->
+          <!-- Bounding Box Overlay (shown when video is within event time range) -->
           <BoundingBoxOverlay
-            v-if="!isHlsPlaying && playbackBoundingBoxes && playbackBoundingBoxes.length > 0"
+            v-if="isWithinEventTimeRange && playbackBoundingBoxes && playbackBoundingBoxes.length > 0"
             :boxes="playbackBoundingBoxes"
             :showLabels="true"
             :thin="true"
@@ -534,6 +605,10 @@ onUnmounted(() => {
             >
               i
             </button>
+          </div>
+          <!-- Event Duration -->
+          <div v-if="eventDuration" class="mt-1">
+            <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Duration: {{ eventDuration }}</span>
           </div>
         </div>
 
