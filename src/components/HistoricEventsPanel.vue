@@ -68,7 +68,7 @@ const hasNoEvents = computed(() => !loading.value && events.value.length === 0 &
 // Computed refresh button label
 const refreshButtonLabel = computed(() => {
   if (loading.value) return 'Loading...'
-  if (!autoRefresh.value) return 'Refresh'
+  if (!autoRefresh.value) return 'Refresh Now'
 
   if (refreshCountdown.value < 60) {
     return `Refresh in ${refreshCountdown.value}s`
@@ -473,8 +473,18 @@ watch(
 <template>
   <div class="historic-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
-      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Historic Events</h3>
+      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Events</h3>
       <div class="flex items-center gap-2">
+        <select
+          v-model="selectedTimeRange"
+          class="text-xs rounded px-1 py-0.5 focus:outline-none cursor-pointer"
+          :class="isDark ? 'text-gray-300 bg-gray-700 border border-gray-600 hover:border-gray-500 focus:border-blue-500' : 'text-gray-600 bg-white border border-gray-300 hover:border-gray-400 focus:border-blue-500'"
+        >
+          <option v-for="option in timeRangeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+
         <!-- Live Feed Toggle Button -->
         <button
           v-if="liveFeedButtonLabel"
@@ -486,16 +496,6 @@ watch(
         >
           {{ liveFeedButtonLabel }}
         </button>
-
-        <select
-          v-model="selectedTimeRange"
-          class="text-xs rounded px-1 py-0.5 focus:outline-none cursor-pointer"
-          :class="isDark ? 'text-gray-300 bg-gray-700 border border-gray-600 hover:border-gray-500 focus:border-blue-500' : 'text-gray-600 bg-white border border-gray-300 hover:border-gray-400 focus:border-blue-500'"
-        >
-          <option v-for="option in timeRangeOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
         <button
           @click="fetchEvents()"
           :disabled="loading"

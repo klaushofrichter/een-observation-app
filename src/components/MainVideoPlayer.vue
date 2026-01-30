@@ -14,6 +14,7 @@ const props = defineProps<{
   playbackEventType?: string | null
   playbackBoundingBoxes?: BoundingBox[]
   playbackEventObject?: Record<string, unknown> | null
+  isAlertSource?: boolean
   isDark?: boolean
 }>()
 
@@ -91,8 +92,8 @@ watch(showEventDataModal, (isOpen) => {
   }
 })
 
-// Copy event data to clipboard
-async function copyEventDataToClipboard() {
+// Copy data to clipboard (event or alert)
+async function copyDataToClipboard() {
   if (!props.playbackEventObject) return
   try {
     await navigator.clipboard.writeText(JSON.stringify(props.playbackEventObject, null, 2))
@@ -154,6 +155,9 @@ const formattedPlaybackTimestamp = computed(() => {
     second: '2-digit'
   })
 })
+
+// Current data type for modal title
+const currentDataType = computed(() => props.isAlertSource ? 'Alert' : 'Event')
 
 // Calculate event duration from startTimestamp and endTimestamp
 const eventDuration = computed(() => {
@@ -571,7 +575,7 @@ onUnmounted(() => {
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="font-mono text-xs break-all">{{ camera.bridgeId }}</p>
         </div>
 
-        <!-- Event Timestamp (only shown for recorded playback) -->
+        <!-- Event/Alert Timestamp (shown for recorded playback) -->
         <div
           v-if="!isLiveMode && formattedPlaybackTimestamp"
           class="p-3 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
@@ -580,7 +584,13 @@ onUnmounted(() => {
           title="Click to play/pause"
         >
           <div class="flex items-center justify-between">
-            <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide cursor-pointer">{{ playbackEventType || 'Event Time' }}</label>
+            <div class="flex items-center gap-1.5">
+              <!-- Bell Icon for Alerts (left of label) -->
+              <svg v-if="isAlertSource" class="w-4 h-4 flex-shrink-0" :class="isDark ? 'text-orange-400' : 'text-orange-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide cursor-pointer">{{ playbackEventType || 'Event Time' }}</label>
+            </div>
             <!-- Play/Pause Icon -->
             <div class="flex-shrink-0">
               <!-- Pause Icon (shown when playing) -->
@@ -601,13 +611,13 @@ onUnmounted(() => {
               @click.stop="showEventDataModal = true"
               class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
               :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
-              title="View event data"
+              :title="isAlertSource ? 'View alert data' : 'View event data'"
             >
               i
             </button>
           </div>
-          <!-- Event Duration -->
-          <div v-if="eventDuration" class="mt-1">
+          <!-- Event Duration (only for events, not alerts) -->
+          <div v-if="!isAlertSource && eventDuration" class="mt-1">
             <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Duration: {{ eventDuration }}</span>
           </div>
         </div>
@@ -638,10 +648,10 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Event Data Modal -->
+    <!-- Event/Alert Data Modal -->
     <Teleport to="body">
       <div
-        v-if="showEventDataModal"
+        v-if="showEventDataModal && playbackEventObject"
         class="fixed inset-0 z-50 flex items-center justify-center"
         @click.self="showEventDataModal = false"
       >
@@ -656,11 +666,11 @@ onUnmounted(() => {
         >
           <!-- Header -->
           <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">Event Data</h3>
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">{{ currentDataType }} Data</h3>
             <div class="flex items-center gap-2">
               <!-- Copy Button -->
               <button
-                @click="copyEventDataToClipboard"
+                @click="copyDataToClipboard"
                 class="p-1 rounded transition-colors"
                 :class="[
                   isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
