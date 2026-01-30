@@ -4,10 +4,17 @@ import {
   createEventSubscription,
   connectToEventSubscription,
   deleteEventSubscription,
-  listAlerts
+  listAlerts,
+  listNotifications
 } from 'een-api-toolkit'
-import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert } from 'een-api-toolkit'
+import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert, Notification } from 'een-api-toolkit'
+
+// Extended alert type with optional notification data
+interface AlertWithNotification extends Alert {
+  notification?: Notification
+}
 import { useImageCache } from '@/composables/useImageCache'
+import { useEventAge } from '@/composables/useEventAge'
 
 const props = defineProps<{
   camera: Camera | null
@@ -24,6 +31,9 @@ const emit = defineEmits<{
 // Use shared image cache
 const { loadImage, getImage } = useImageCache()
 
+// Use event age formatting (updates every second)
+const { formatAge } = useEventAge()
+
 // SSE State
 const subscriptionId = ref<string | null>(null)
 const sseConnection = ref<SSEConnection | null>(null)
@@ -32,7 +42,7 @@ const connectionError = ref<EenError | null>(null)
 const liveFeedEnabled = ref(false) // User's desired state - always reconnect when enabled
 
 // Alerts State
-const alerts = ref<Alert[]>([])
+const alerts = ref<AlertWithNotification[]>([])
 const alertsLoading = ref(false)
 const alertsError = ref<EenError | null>(null)
 const alertsNextPageToken = ref<string | undefined>(undefined)
@@ -40,6 +50,14 @@ const alertsNextPageToken = ref<string | undefined>(undefined)
 // Hover preview state
 const hoveredAlertId = ref<string | null>(null)
 const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
+
+// Notification modal state
+const showNotificationModal = ref(false)
+const selectedNotification = ref<Notification | null>(null)
+const notificationCopied = ref(false)
+
+// Event type filter state for alerts
+const eventFilterEnabled = ref(false)
 
 // Auto-refresh state for alerts
 const autoRefresh = ref(false)
@@ -90,6 +108,19 @@ const refreshButtonLabel = computed(() => {
   return `Refresh in ${Math.ceil(refreshCountdown.value / 60)}m`
 })
 
+// Computed event filter button label
+const eventFilterButtonLabel = computed(() => {
+  return eventFilterEnabled.value ? 'Disable Event Filter' : 'Enable Event Filter'
+})
+
+// Computed event filter button styling
+const eventFilterButtonClass = computed(() => {
+  if (eventFilterEnabled.value) {
+    return 'bg-green-600 hover:bg-green-700 text-white'
+  }
+  return 'bg-gray-500 hover:bg-gray-600 text-white'
+})
+
 // Computed button label based on state
 const feedButtonLabel = computed(() => {
   if (isConnecting.value) return 'Connecting...'
@@ -121,6 +152,13 @@ function toggleLiveFeed() {
       connect()
     }
   }
+}
+
+// Toggle event type filter for alerts
+function toggleEventFilter() {
+  eventFilterEnabled.value = !eventFilterEnabled.value
+  // Refresh alerts with new filter setting
+  fetchAlerts()
 }
 
 // Handle new SSE event - just emit to parent
@@ -407,23 +445,6 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-// Format alert age
-function formatAge(timestamp: string): string {
-  const now = Date.now()
-  const alertTime = new Date(timestamp).getTime()
-  const diffMs = now - alertTime
-
-  const seconds = Math.floor(diffMs / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (days > 0) return `${days}d ago`
-  if (hours > 0) return `${hours}h ago`
-  if (minutes > 0) return `${minutes}m ago`
-  return 'Just now'
-}
-
 // Get human-readable alert type name
 function getAlertTypeName(type: string): string {
   // Parse the type string (e.g., "een.motionDetectionAlert.v1" -> "Motion Detection")
@@ -475,6 +496,81 @@ function clearHover() {
   hoverPosition.value = null
 }
 
+// Fetch notifications for the same time range and merge with alerts
+async function fetchAndMergeNotifications() {
+  if (!props.camera || alerts.value.length === 0) return
+
+  const result = await listNotifications({
+    actorId: props.camera.id,
+    timestamp__gte: getStartTimestamp(),
+    timestamp__lte: new Date().toISOString(),
+    pageSize: 100,
+    sort: ['-timestamp']
+  })
+
+  if (result.error) {
+    // Silently fail - notifications are supplementary
+    return
+  }
+
+  // Create a map of alertId -> notification
+  const notificationsByAlertId = new Map<string, Notification>()
+  for (const notification of result.data.results) {
+    if (notification.alertId) {
+      // Only keep the first (most recent) notification per alert
+      if (!notificationsByAlertId.has(notification.alertId)) {
+        notificationsByAlertId.set(notification.alertId, notification)
+      }
+    }
+  }
+
+  // Merge notifications into alerts
+  for (const alert of alerts.value) {
+    const notification = notificationsByAlertId.get(alert.id)
+    if (notification) {
+      alert.notification = notification
+    }
+  }
+}
+
+// Show notification modal
+function showNotificationDetails(notification: Notification, event: MouseEvent) {
+  event.stopPropagation() // Prevent alert click
+  selectedNotification.value = notification
+  showNotificationModal.value = true
+}
+
+// Copy notification data to clipboard
+async function copyNotificationToClipboard() {
+  if (!selectedNotification.value) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(selectedNotification.value, null, 2))
+    notificationCopied.value = true
+    setTimeout(() => {
+      notificationCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+  }
+}
+
+// Handle ESC key to close notification modal
+function handleNotificationEscKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    showNotificationModal.value = false
+  }
+}
+
+// Watch notification modal state to add/remove ESC key listener
+watch(showNotificationModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleNotificationEscKey)
+  } else {
+    document.removeEventListener('keydown', handleNotificationEscKey)
+    selectedNotification.value = null
+  }
+})
+
 // Fetch alerts
 async function fetchAlerts(append = false) {
   if (!props.camera) {
@@ -488,10 +584,16 @@ async function fetchAlerts(append = false) {
     alertsError.value = null
   }
 
+  // Convert event types to alert types (e.g., "een.motionDetectionEvent.v1" -> "een.motionDetectionAlert.v1")
+  const alertTypes = eventFilterEnabled.value && props.selectedTypes.length > 0
+    ? props.selectedTypes.map(type => type.replace('Event', 'Alert'))
+    : undefined
+
   const result = await listAlerts({
     actorId__in: [props.camera.id],
     timestamp__gte: getStartTimestamp(),
     timestamp__lte: new Date().toISOString(),
+    alertType__in: alertTypes,
     pageSize: 20,
     pageToken: append ? alertsNextPageToken.value : undefined,
     include: ['data', 'actions', 'description'],
@@ -515,6 +617,9 @@ async function fetchAlerts(append = false) {
 
     // Load images for alerts
     loadAlertImages(newAlerts)
+
+    // Fetch notifications and merge with alerts
+    await fetchAndMergeNotifications()
   }
 
   alertsLoading.value = false
@@ -585,6 +690,7 @@ if (props.camera) {
 onUnmounted(async () => {
   await disconnect()
   stopRefreshTimer()
+  document.removeEventListener('keydown', handleNotificationEscKey)
 })
 
 // Expose toggle function and state for parent component
@@ -602,7 +708,7 @@ defineExpose({
 <template>
   <div class="live-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
-      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Alerts</h3>
+      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'" title="Display of Alerts and associated Notifications without Alert Type Filter">Alerts</h3>
       <div class="flex items-center gap-2">
         <select
           v-model="selectedTimeRange"
@@ -613,6 +719,16 @@ defineExpose({
             {{ option.label }}
           </option>
         </select>
+
+        <!-- Event Filter Toggle Button -->
+        <button
+          @click="toggleEventFilter"
+          class="px-2 py-0.5 text-xs rounded transition-colors"
+          :class="eventFilterButtonClass"
+          title="Filter alerts by selected event types"
+        >
+          {{ eventFilterButtonLabel }}
+        </button>
 
         <button
           @click="fetchAlerts()"
@@ -707,8 +823,21 @@ defineExpose({
 
         <!-- Alert Info -->
         <div class="flex-1 min-w-0">
-          <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ alert.alertName || getAlertTypeName(alert.alertType) }}
+          <div class="flex items-center gap-1">
+            <span class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
+              {{ alert.alertName || getAlertTypeName(alert.alertType) }}
+            </span>
+            <!-- Notification Icon (if notification exists for this alert) -->
+            <button
+              v-if="alert.notification"
+              @click="showNotificationDetails(alert.notification!, $event)"
+              class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+              title="View notification details"
+            >
+              <svg class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </button>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
             <span>{{ formatTimestamp(alert.timestamp) }}</span>
@@ -762,6 +891,72 @@ defineExpose({
     <div v-if="alerts.length > 0" class="text-xs mt-1 flex-shrink-0 pt-1 border-t" :class="isDark ? 'text-gray-500 border-gray-700' : 'text-gray-400 border-gray-100'">
       {{ alerts.length }} alert{{ alerts.length !== 1 ? 's' : '' }}
     </div>
+
+    <!-- Notification Data Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showNotificationModal && selectedNotification"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        @click.self="showNotificationModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showNotificationModal = false" />
+
+        <!-- Modal -->
+        <div
+          class="relative rounded-lg shadow-xl max-h-[80vh] flex flex-col"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+          style="width: 80%"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">Notification Data</h3>
+            <div class="flex items-center gap-2">
+              <!-- Copy Button -->
+              <button
+                @click="copyNotificationToClipboard"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  notificationCopied ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                ]"
+                :title="notificationCopied ? 'Copied!' : 'Copy to clipboard'"
+              >
+                <!-- Checkmark icon when copied -->
+                <svg v-if="notificationCopied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <!-- Copy icon -->
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <!-- Close Button -->
+              <button
+                @click="showNotificationModal = false"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'
+                ]"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 overflow-auto flex-1">
+            <pre
+              class="text-xs font-mono p-4 rounded overflow-auto"
+              :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+            >{{ JSON.stringify(selectedNotification, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 

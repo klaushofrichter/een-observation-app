@@ -142,7 +142,7 @@ watch(() => props.camera?.id, () => {
 
 <template>
   <div class="event-types-panel h-full flex flex-col">
-    <h3 class="text-sm font-semibold mb-2 flex-shrink-0" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Event Types</h3>
+    <h3 class="text-sm font-semibold mb-2 flex-shrink-0" :class="isDark ? 'text-gray-200' : 'text-gray-700'" title="Filter Events for the Events Listing on the right">Event Types</h3>
 
     <!-- Loading State -->
     <div v-if="loading" class="text-xs flex items-center" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
