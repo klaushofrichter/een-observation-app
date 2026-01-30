@@ -594,7 +594,7 @@ async function fetchAlerts(append = false) {
     timestamp__gte: getStartTimestamp(),
     timestamp__lte: new Date().toISOString(),
     alertType__in: alertTypes,
-    pageSize: 20,
+    pageSize: 100,
     pageToken: append ? alertsNextPageToken.value : undefined,
     include: ['data', 'actions', 'description'],
     sort: ['-timestamp']
