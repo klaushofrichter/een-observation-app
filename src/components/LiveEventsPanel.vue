@@ -514,7 +514,7 @@ async function fetchAndMergeNotifications() {
     timestamp__gte: getStartTimestamp(),
     timestamp__lte: new Date().toISOString(),
     pageSize: 100,
-    sort: ['-timestamp']
+    sort: ['-timestamp'] as const
   }
   console.log('[Notifications] Fetching with params:', params)
 
