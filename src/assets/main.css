@@ -16,3 +16,15 @@ body {
 #app {
   min-height: 100vh;
 }
+
+/* Dark mode checkbox styling */
+.dark input[type="checkbox"] {
+  background-color: #374151;
+  border-color: #4b5563;
+  color-scheme: dark;
+}
+
+.dark input[type="checkbox"]:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
