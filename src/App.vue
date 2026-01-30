@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, provide, onUnmounted } from 'vue'
 import { useAuthStore, getCurrentUser } from 'een-api-toolkit'
 import { useRoute } from 'vue-router'
 import { useDarkMode } from '@/composables/useDarkMode'
+import { version } from '../package.json'
 
 interface UserProfile {
   id: string
@@ -160,6 +161,9 @@ watch(() => authStore.isAuthenticated, loadUser)
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           </button>
+
+          <!-- Version -->
+          <span class="opacity-70 text-xs">v{{ version }}</span>
 
           <template v-if="isAuthenticated && user">
             <button
