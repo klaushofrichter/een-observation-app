@@ -509,16 +509,23 @@ async function fetchAndMergeNotifications() {
     return
   }
 
-  const params = {
+  const startTs = getStartTimestamp()
+  const endTs = new Date().toISOString()
+  console.log('[Notifications] Fetching with params:', {
     actorId: props.camera.id,
-    timestamp__gte: getStartTimestamp(),
-    timestamp__lte: new Date().toISOString(),
+    timestamp__gte: startTs,
+    timestamp__lte: endTs,
     pageSize: 100,
-    sort: ['-timestamp'] as const
-  }
-  console.log('[Notifications] Fetching with params:', params)
+    sort: ['-timestamp']
+  })
 
-  const result = await listNotifications(params)
+  const result = await listNotifications({
+    actorId: props.camera.id,
+    timestamp__gte: startTs,
+    timestamp__lte: endTs,
+    pageSize: 100,
+    sort: ['-timestamp']
+  })
 
   if (result.error) {
     console.error('[Notifications] Error fetching notifications:', result.error)
