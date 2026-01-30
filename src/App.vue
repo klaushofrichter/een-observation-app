@@ -66,11 +66,12 @@ async function showAndCopyToken() {
   }
 }
 
-// Copy base URL to clipboard
+// Copy base URL to clipboard (without https:// prefix)
 async function copyBaseUrl() {
   if (!authStore.baseUrl) return
   try {
-    await navigator.clipboard.writeText(authStore.baseUrl)
+    const urlWithoutProtocol = authStore.baseUrl.replace(/^https?:\/\//, '')
+    await navigator.clipboard.writeText(urlWithoutProtocol)
     baseUrlCopied.value = true
     setTimeout(() => {
       baseUrlCopied.value = false
