@@ -59,6 +59,12 @@ const playbackEventId = ref<string | null>(null)
 const playbackBoundingBoxes = ref<BoundingBox[]>([])
 const playbackEventObject = ref<Record<string, unknown> | null>(null)
 
+// Active alert state
+const activeAlertId = ref<string | null>(null)
+
+// Track if current playback source is an alert (to show bell icon)
+const isAlertSource = ref(false)
+
 // Computed selected camera ID for sidebar
 const selectedCameraId = computed(() => selectedCamera.value?.id || null)
 
@@ -72,6 +78,8 @@ function handleCameraSelect(camera: Camera) {
   playbackEventId.value = null
   playbackBoundingBoxes.value = []
   playbackEventObject.value = null
+  activeAlertId.value = null
+  isAlertSource.value = false
 }
 
 // Handle event click - switch to recorded playback
@@ -82,6 +90,42 @@ function handleEventClick(event: { cameraId: string; timestamp: string; eventTyp
   playbackEventId.value = event.eventId
   playbackBoundingBoxes.value = event.boundingBoxes
   playbackEventObject.value = event.eventObject
+  // Clear active alert when an event is selected
+  activeAlertId.value = null
+  isAlertSource.value = false
+}
+
+// Handle alert click - switch to recorded playback using alert timestamp
+function handleAlertClick(alert: { alertId: string; alertObject: Record<string, unknown> }) {
+  activeAlertId.value = alert.alertId
+  isAlertSource.value = true
+
+  // Extract alert type name
+  const alertType = alert.alertObject.alertType as string | undefined
+  const alertTypeName = alertType ? getAlertTypeName(alertType) : 'Alert'
+
+  // Extract alert timestamp
+  const alertTimestamp = alert.alertObject.timestamp as string | null
+
+  // Switch to recorded playback mode using alert timestamp
+  playbackMode.value = 'recorded'
+  playbackTimestamp.value = alertTimestamp
+  playbackEventType.value = alertTypeName
+  playbackEventId.value = null // Clear event ID since this is an alert
+  playbackBoundingBoxes.value = [] // Alerts don't have bounding boxes
+  playbackEventObject.value = alert.alertObject
+}
+
+// Get human-readable alert type name
+function getAlertTypeName(type: string): string {
+  const match = type.match(/een\.(\w+)Alert\.v\d+/)
+  if (match) {
+    return match[1]
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim()
+  }
+  return type
 }
 
 // Selected event types state (shared between panels)
@@ -89,6 +133,7 @@ const selectedEventTypes = ref<string[]>([])
 
 // References for cross-panel communication
 const historicEventsPanelRef = ref<InstanceType<typeof HistoricEventsPanel> | null>(null)
+const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
 
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
@@ -153,6 +198,7 @@ onMounted(async () => {
               :playback-event-type="playbackEventType"
               :playback-bounding-boxes="playbackBoundingBoxes"
               :playback-event-object="playbackEventObject"
+              :is-alert-source="isAlertSource"
               :is-dark="isDark"
             />
           </div>
@@ -198,18 +244,23 @@ onMounted(async () => {
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
+                :live-feed-button-label="liveEventsPanelRef?.feedButtonLabel"
+                :live-feed-button-class="liveEventsPanelRef?.feedButtonClass"
+                :live-feed-can-toggle="liveEventsPanelRef?.canConnect || liveEventsPanelRef?.isConnected || liveEventsPanelRef?.isConnecting"
                 @event-clicked="handleEventClick"
+                @toggle-live-feed="liveEventsPanelRef?.toggleLiveFeed()"
               />
             </div>
 
-            <!-- Live SSE Events Panel -->
+            <!-- Live SSE Events Panel (Alerts) -->
             <div class="flex-1 p-3">
               <LiveEventsPanel
+                ref="liveEventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
-                :active-event-id="playbackEventId"
-                @event-clicked="handleEventClick"
+                :active-alert-id="activeAlertId"
+                @alert-clicked="handleAlertClick"
                 @sse-event="handleSseEvent"
               />
             </div>

@@ -12,10 +12,14 @@ const props = defineProps<{
   selectedTypes: string[]
   isDark?: boolean
   activeEventId?: string | null
+  liveFeedButtonLabel?: string
+  liveFeedButtonClass?: string
+  liveFeedCanToggle?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
+  (e: 'toggle-live-feed'): void
 }>()
 
 // Use shared image cache
@@ -64,7 +68,7 @@ const hasNoEvents = computed(() => !loading.value && events.value.length === 0 &
 // Computed refresh button label
 const refreshButtonLabel = computed(() => {
   if (loading.value) return 'Loading...'
-  if (!autoRefresh.value) return 'Refresh'
+  if (!autoRefresh.value) return 'Refresh Now'
 
   if (refreshCountdown.value < 60) {
     return `Refresh in ${refreshCountdown.value}s`
@@ -469,7 +473,7 @@ watch(
 <template>
   <div class="historic-events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
-      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Historic Events</h3>
+      <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">Events</h3>
       <div class="flex items-center gap-2">
         <select
           v-model="selectedTimeRange"
@@ -480,11 +484,23 @@ watch(
             {{ option.label }}
           </option>
         </select>
+
+        <!-- Live Feed Toggle Button -->
+        <button
+          v-if="liveFeedButtonLabel"
+          @click="emit('toggle-live-feed')"
+          :disabled="!liveFeedCanToggle"
+          class="px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="liveFeedButtonClass"
+          title="Toggle live event feed"
+        >
+          {{ liveFeedButtonLabel }}
+        </button>
         <button
           @click="fetchEvents()"
           :disabled="loading"
           class="px-2 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[100px]"
-          title="Refresh events and move matching Live Events here"
+          title="Refresh events"
         >
           {{ refreshButtonLabel }}
         </button>
