@@ -290,3 +290,4 @@ watch(() => authStore.isAuthenticated, loadUser)
     </Teleport>
   </div>
 </template>
+
