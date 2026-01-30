@@ -56,6 +56,9 @@ const showNotificationModal = ref(false)
 const selectedNotification = ref<Notification | null>(null)
 const notificationCopied = ref(false)
 
+// Event type filter state for alerts
+const eventFilterEnabled = ref(false)
+
 // Auto-refresh state for alerts
 const autoRefresh = ref(false)
 const refreshCountdown = ref(0) // seconds until next refresh
@@ -105,6 +108,19 @@ const refreshButtonLabel = computed(() => {
   return `Refresh in ${Math.ceil(refreshCountdown.value / 60)}m`
 })
 
+// Computed event filter button label
+const eventFilterButtonLabel = computed(() => {
+  return eventFilterEnabled.value ? 'Disable Event Filter' : 'Enable Event Filter'
+})
+
+// Computed event filter button styling
+const eventFilterButtonClass = computed(() => {
+  if (eventFilterEnabled.value) {
+    return 'bg-green-600 hover:bg-green-700 text-white'
+  }
+  return 'bg-gray-500 hover:bg-gray-600 text-white'
+})
+
 // Computed button label based on state
 const feedButtonLabel = computed(() => {
   if (isConnecting.value) return 'Connecting...'
@@ -136,6 +152,13 @@ function toggleLiveFeed() {
       connect()
     }
   }
+}
+
+// Toggle event type filter for alerts
+function toggleEventFilter() {
+  eventFilterEnabled.value = !eventFilterEnabled.value
+  // Refresh alerts with new filter setting
+  fetchAlerts()
 }
 
 // Handle new SSE event - just emit to parent
@@ -561,10 +584,16 @@ async function fetchAlerts(append = false) {
     alertsError.value = null
   }
 
+  // Convert event types to alert types (e.g., "een.motionDetectionEvent.v1" -> "een.motionDetectionAlert.v1")
+  const alertTypes = eventFilterEnabled.value && props.selectedTypes.length > 0
+    ? props.selectedTypes.map(type => type.replace('Event', 'Alert'))
+    : undefined
+
   const result = await listAlerts({
     actorId__in: [props.camera.id],
     timestamp__gte: getStartTimestamp(),
     timestamp__lte: new Date().toISOString(),
+    alertType__in: alertTypes,
     pageSize: 20,
     pageToken: append ? alertsNextPageToken.value : undefined,
     include: ['data', 'actions', 'description'],
@@ -690,6 +719,16 @@ defineExpose({
             {{ option.label }}
           </option>
         </select>
+
+        <!-- Event Filter Toggle Button -->
+        <button
+          @click="toggleEventFilter"
+          class="px-2 py-0.5 text-xs rounded transition-colors"
+          :class="eventFilterButtonClass"
+          title="Filter alerts by selected event types"
+        >
+          {{ eventFilterButtonLabel }}
+        </button>
 
         <button
           @click="fetchAlerts()"
