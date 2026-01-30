@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Pre-commit hook to increment patch version
+
+# Check if any source files have staged changes
+if git diff --cached --name-only | grep -qE "^src/|^public/|^index\.html$"; then
+    echo "Incrementing patch version..."
+
+    # Increment patch version
+    npm version patch --no-git-tag-version || exit 1
+
+    # Stage the updated package files
+    git add package.json
+    if [ -f "package-lock.json" ]; then
+        git add package-lock.json
+    fi
+
+    echo "Version incremented successfully"
+fi
+
+exit 0
