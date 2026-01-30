@@ -18,11 +18,55 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
 
 ### Events System
-- **Event Type Filtering** - Toggle event types (motion detection, person detection, device status)
-- **Historic Events Panel** - Browse past events with thumbnails, configurable time range, auto-refresh
-- **Live Events Panel** - Real-time Server-Sent Events (SSE) feed with auto-scroll and reconnection
-- **Event Thumbnails** - Hover preview with enlarged thumbnail popup
-- **Click-to-Playback** - Click any event to jump to recorded video at that timestamp
+
+The bottom section of the application contains three panels for event management:
+
+#### Event Types Panel (Left)
+- **Event Type Toggles** - Select which event types to display (motion detection, person detection, etc.)
+- **Select All / None** - Quick toggle buttons to select or deselect all event types
+- **Filter Scope** - Selected types filter the Events panel; optionally filter Alerts too
+
+#### Events Panel (Center)
+- **Event List** - Browse events matching selected event types with thumbnails
+- **Time Range Selector** - Choose time window (10 min, 1 hour, 24 hours, 1 week)
+- **Live Events Toggle** - Enable/disable real-time SSE event feed
+  - Green "Disable Live Events" when active
+  - Gray "Turn Live Events On" when inactive
+- **Refresh Button** - Manual refresh with countdown timer when auto-refresh enabled
+- **Auto-Refresh Checkbox** - Automatic refresh every minute
+- **Event Thumbnails** - Hover to see enlarged preview with bounding boxes
+- **Click-to-Playback** - Click any event to play recorded video at that timestamp
+- **SSE Events** - Live events appear with blue background, turn green after refresh
+- **Event Info Box** - Orange box in Camera Information shows:
+  - Lightning bolt icon + event type name
+  - Timestamp with play/pause controls
+  - Event duration
+  - (i) button to view full JSON data in modal
+
+#### Alerts Panel (Right)
+- **Alert List** - Browse alerts for the selected camera with thumbnails
+- **Time Range Selector** - Independent time window selection
+- **Event Filter Toggle** - Filter alerts by selected event types
+  - Green "Disable Event Filter" when filtering active
+  - Gray "Enable Event Filter" when showing all alerts
+- **Refresh Button** - Manual refresh with countdown timer
+- **Auto-Refresh Checkbox** - Automatic refresh every minute
+- **Alert Thumbnails** - Based on alert timestamp, hover for preview
+- **Notification Icon** - Envelope icon appears if alert has associated notification
+  - Click to view notification JSON in modal
+- **Priority Badges** - Color-coded priority (red >= 8, orange >= 5)
+- **Click-to-Playback** - Click any alert to play recorded video at that timestamp
+- **Alert Info Box** - Orange box in Camera Information shows:
+  - Bell icon + alert type name
+  - Timestamp with play/pause controls
+  - (i) button to view full JSON data in modal
+
+### JSON Data Display
+- **Event Data Modal** - View complete event JSON with syntax highlighting
+- **Alert Data Modal** - View complete alert JSON with syntax highlighting
+- **Notification Data Modal** - View notification JSON for alerts with notifications
+- **Copy to Clipboard** - One-click copy of JSON data
+- **ESC to Close** - Press Escape or click outside to close modals
 
 ### Authentication
 - **OAuth 2.0 Flow** - Secure login via Eagle Eye Networks OAuth
@@ -31,8 +75,10 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 
 ### User Interface
 - **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
-- **Event Highlighting** - Active event shows orange border, distinct styling for historic vs live events
-- **Visual Camera Selection Feedback** - Selected camera shows thick borderer
+- **Event/Alert Highlighting** - Active event or alert shows orange border
+- **Visual Camera Selection Feedback** - Selected camera shows thick border
+- **Panel Tooltips** - Hover over panel titles to see descriptions
+- **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
 
 ## URL Camera Selection
 
@@ -75,6 +121,8 @@ This application uses the following functions from [een-api-toolkit](https://git
 - **Devices:** `getCameras`, `getLayouts`
 - **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
 - **Events:** `listEvents`, `listEventTypes`, `listEventFieldValues`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
+- **Alerts:** `listAlerts`
+- **Notifications:** `listNotifications`
 
 ## Prerequisites
 
