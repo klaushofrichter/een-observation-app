@@ -498,39 +498,75 @@ function clearHover() {
 
 // Fetch notifications for the same time range and merge with alerts
 async function fetchAndMergeNotifications() {
-  if (!props.camera || alerts.value.length === 0) return
+  console.log('[Notifications] fetchAndMergeNotifications called', {
+    hasCamera: !!props.camera,
+    cameraId: props.camera?.id,
+    alertsCount: alerts.value.length
+  })
 
-  const result = await listNotifications({
+  if (!props.camera || alerts.value.length === 0) {
+    console.log('[Notifications] Skipping - no camera or no alerts')
+    return
+  }
+
+  const params = {
     actorId: props.camera.id,
     timestamp__gte: getStartTimestamp(),
     timestamp__lte: new Date().toISOString(),
     pageSize: 100,
     sort: ['-timestamp']
-  })
+  }
+  console.log('[Notifications] Fetching with params:', params)
+
+  const result = await listNotifications(params)
 
   if (result.error) {
-    // Silently fail - notifications are supplementary
+    console.error('[Notifications] Error fetching notifications:', result.error)
     return
+  }
+
+  const notifications = result.data.results
+  console.log('[Notifications] Retrieved:', notifications.length, 'notifications')
+
+  // Log first few notifications for debugging
+  if (notifications.length > 0) {
+    console.log('[Notifications] Sample notification:', {
+      id: notifications[0].id,
+      alertId: notifications[0].alertId,
+      timestamp: notifications[0].timestamp
+    })
   }
 
   // Create a map of alertId -> notification
   const notificationsByAlertId = new Map<string, Notification>()
-  for (const notification of result.data.results) {
+  let notificationsWithAlertId = 0
+  for (const notification of notifications) {
     if (notification.alertId) {
+      notificationsWithAlertId++
       // Only keep the first (most recent) notification per alert
       if (!notificationsByAlertId.has(notification.alertId)) {
         notificationsByAlertId.set(notification.alertId, notification)
       }
     }
   }
+  console.log('[Notifications] Notifications with alertId:', notificationsWithAlertId)
+  console.log('[Notifications] Unique alertIds:', notificationsByAlertId.size)
+
+  // Log alert IDs for comparison
+  const alertIds = alerts.value.map(a => a.id)
+  console.log('[Notifications] Alert IDs to match:', alertIds.slice(0, 5), alertIds.length > 5 ? `... (${alertIds.length} total)` : '')
 
   // Merge notifications into alerts
+  let matchCount = 0
   for (const alert of alerts.value) {
     const notification = notificationsByAlertId.get(alert.id)
     if (notification) {
       alert.notification = notification
+      matchCount++
+      console.log('[Notifications] Match found - Alert:', alert.id, 'Notification:', notification.id)
     }
   }
+  console.log('[Notifications] Total matches:', matchCount, 'out of', alerts.value.length, 'alerts')
 }
 
 // Show notification modal
