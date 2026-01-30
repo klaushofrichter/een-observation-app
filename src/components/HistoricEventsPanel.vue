@@ -254,7 +254,7 @@ async function fetchEvents(append = false) {
     type__in: props.selectedTypes,
     startTimestamp__gte: getStartTimestamp(),
     endTimestamp__lte: new Date().toISOString(),
-    pageSize: 20,
+    pageSize: 100,
     pageToken: append ? nextPageToken.value : undefined,
     sort: '-startTimestamp',
     include: [
