@@ -7,6 +7,7 @@ import {
   listAlerts
 } from 'een-api-toolkit'
 import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert } from 'een-api-toolkit'
+import { useImageCache } from '@/composables/useImageCache'
 
 const props = defineProps<{
   camera: Camera | null
@@ -20,6 +21,9 @@ const emit = defineEmits<{
   (e: 'alert-clicked', alert: { alertId: string; alertObject: Record<string, unknown> }): void
 }>()
 
+// Use shared image cache
+const { loadImage, getImage } = useImageCache()
+
 // SSE State
 const subscriptionId = ref<string | null>(null)
 const sseConnection = ref<SSEConnection | null>(null)
@@ -32,6 +36,10 @@ const alerts = ref<Alert[]>([])
 const alertsLoading = ref(false)
 const alertsError = ref<EenError | null>(null)
 const alertsNextPageToken = ref<string | undefined>(undefined)
+
+// Hover preview state
+const hoveredAlertId = ref<string | null>(null)
+const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 
 // Auto-refresh state for alerts
 const autoRefresh = ref(false)
@@ -437,6 +445,36 @@ function handleAlertClick(alert: Alert) {
   })
 }
 
+// Load images for alerts
+async function loadAlertImages(alertsToLoad: Alert[]) {
+  for (const alert of alertsToLoad) {
+    if (alert.actorType !== 'camera') continue
+    loadImage(alert.id, alert.actorId, alert.timestamp)
+  }
+}
+
+// Get image for an alert
+function getAlertImage(alert: Alert): string | null {
+  return getImage(alert.id)
+}
+
+// Handle thumbnail hover - capture position for popup
+function handleThumbnailHover(alert: Alert, mouseEvent: MouseEvent) {
+  hoveredAlertId.value = alert.id
+  const target = mouseEvent.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  hoverPosition.value = {
+    bottom: rect.bottom,
+    right: rect.left - 10
+  }
+}
+
+// Clear hover state
+function clearHover() {
+  hoveredAlertId.value = null
+  hoverPosition.value = null
+}
+
 // Fetch alerts
 async function fetchAlerts(append = false) {
   if (!props.camera) {
@@ -474,6 +512,9 @@ async function fetchAlerts(append = false) {
       alerts.value = newAlerts
     }
     alertsNextPageToken.value = result.data.nextPageToken
+
+    // Load images for alerts
+    loadAlertImages(newAlerts)
   }
 
   alertsLoading.value = false
@@ -644,14 +685,24 @@ defineExpose({
         ]"
         @click="handleAlertClick(alert)"
       >
-        <!-- Alert Icon -->
+        <!-- Thumbnail -->
         <div
-          class="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-          :class="isDark ? 'bg-yellow-800' : 'bg-yellow-200'"
+          class="w-12 h-8 rounded overflow-hidden flex-shrink-0"
+          :class="isDark ? 'bg-gray-700' : 'bg-gray-200'"
+          @mouseenter="handleThumbnailHover(alert, $event)"
+          @mouseleave="clearHover"
         >
-          <svg class="w-4 h-4" :class="isDark ? 'text-yellow-300' : 'text-yellow-700'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
+          <img
+            v-if="getAlertImage(alert)"
+            :src="getAlertImage(alert) || ''"
+            :alt="alert.alertType"
+            class="w-full h-full object-cover cursor-pointer"
+          />
+          <div v-else class="w-full h-full flex items-center justify-center">
+            <svg class="w-4 h-4" :class="isDark ? 'text-gray-500' : 'text-gray-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
         </div>
 
         <!-- Alert Info -->
@@ -674,6 +725,26 @@ defineExpose({
           P{{ alert.priority }}
         </div>
       </div>
+
+      <!-- Hover preview popup (teleported to body, positioned to the left of thumbnail) -->
+      <Teleport to="body">
+        <div
+          v-if="hoveredAlertId && hoverPosition && getImage(hoveredAlertId)"
+          class="fixed z-[9999] rounded-lg shadow-xl p-2 pointer-events-none"
+          :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
+          :style="{
+            top: hoverPosition.bottom + 'px',
+            left: hoverPosition.right + 'px',
+            transform: 'translateX(-100%) translateY(-100%)'
+          }"
+        >
+          <img
+            :src="getImage(hoveredAlertId) || ''"
+            alt="Alert preview"
+            class="max-w-[384px] h-auto rounded"
+          />
+        </div>
+      </Teleport>
 
       <!-- Load More Button -->
       <button
