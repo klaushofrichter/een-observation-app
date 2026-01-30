@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Pre-push hook to verify the application builds
+
+echo "Running build check before push..."
+
+npm run build || {
+    echo "Build failed! Push aborted."
+    exit 1
+}
+
+echo "Build check passed."
+exit 0

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, provide } from 'vue'
+import { ref, computed, onMounted, watch, provide, onUnmounted } from 'vue'
 import { useAuthStore, getCurrentUser } from 'een-api-toolkit'
 import { useRoute } from 'vue-router'
 import { useDarkMode } from '@/composables/useDarkMode'
+import { version } from '../package.json'
 
 interface UserProfile {
   id: string
@@ -24,6 +25,80 @@ provide('isDark', isDark)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
+// User info modal state
+const showUserModal = ref(false)
+const showToken = ref(false)
+const tokenCopied = ref(false)
+const baseUrlCopied = ref(false)
+
+// Format token expiration time
+const tokenExpirationFormatted = computed(() => {
+  if (!authStore.tokenExpiration) return 'Unknown'
+  const expDate = new Date(authStore.tokenExpiration)
+  return expDate.toLocaleString()
+})
+
+// Time remaining until token expires
+const tokenTimeRemaining = computed(() => {
+  const expiresIn = authStore.tokenExpiresIn
+  if (expiresIn <= 0) return 'Expired'
+  const minutes = Math.floor(expiresIn / 60000)
+  const seconds = Math.floor((expiresIn % 60000) / 1000)
+  if (minutes > 60) {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return `${hours}h ${mins}m`
+  }
+  return `${minutes}m ${seconds}s`
+})
+
+// Copy token to clipboard and show it
+async function showAndCopyToken() {
+  if (!authStore.token) return
+  try {
+    await navigator.clipboard.writeText(authStore.token)
+    showToken.value = true
+    tokenCopied.value = true
+    setTimeout(() => {
+      tokenCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy token:', err)
+  }
+}
+
+// Copy base URL to clipboard (without https:// prefix)
+async function copyBaseUrl() {
+  if (!authStore.baseUrl) return
+  try {
+    const urlWithoutProtocol = authStore.baseUrl.replace(/^https?:\/\//, '')
+    await navigator.clipboard.writeText(urlWithoutProtocol)
+    baseUrlCopied.value = true
+    setTimeout(() => {
+      baseUrlCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy base URL:', err)
+  }
+}
+
+// Handle ESC key to close modal
+function handleEscKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    showUserModal.value = false
+  }
+}
+
+// Watch modal state to add/remove ESC key listener and reset token visibility
+watch(showUserModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleEscKey)
+  } else {
+    document.removeEventListener('keydown', handleEscKey)
+    showToken.value = false
+  }
+})
+
 async function loadUser() {
   if (authStore.isAuthenticated) {
     const result = await getCurrentUser()
@@ -40,6 +115,10 @@ onMounted(() => {
   // This restores the session if a valid token exists
   authStore.initialize()
   loadUser()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscKey)
 })
 
 watch(() => authStore.isAuthenticated, loadUser)
@@ -65,6 +144,7 @@ watch(() => authStore.isAuthenticated, loadUser)
             <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.8"/>
           </svg>
           {{ appName }}
+          <span class="text-xs opacity-70 font-normal">v{{ version }}</span>
         </a>
         <div class="flex items-center gap-4 text-sm">
           <!-- Dark Mode Toggle -->
@@ -84,7 +164,13 @@ watch(() => authStore.isAuthenticated, loadUser)
           </button>
 
           <template v-if="isAuthenticated && user">
-            <span>{{ user.firstName }} {{ user.lastName }}</span>
+            <button
+              @click="showUserModal = true"
+              class="hover:underline cursor-pointer"
+              title="View user info and API details"
+            >
+              {{ user.firstName }} {{ user.lastName }}
+            </button>
             <span class="opacity-50">|</span>
             <router-link to="/logout" class="hover:underline">Logout</router-link>
           </template>
@@ -99,5 +185,111 @@ watch(() => authStore.isAuthenticated, loadUser)
     <main>
       <router-view />
     </main>
+
+    <!-- User Info Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showUserModal && user"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        @click.self="showUserModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showUserModal = false" />
+
+        <!-- Modal -->
+        <div
+          class="relative rounded-lg shadow-xl max-w-lg w-full mx-4"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">User Info</h3>
+            <button
+              @click="showUserModal = false"
+              class="p-1 rounded transition-colors"
+              :class="isDark ? 'hover:bg-gray-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-600'"
+              title="Close (ESC)"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 space-y-4">
+            <!-- User Details -->
+            <div class="space-y-2">
+              <h4 class="text-sm font-medium" :class="isDark ? 'text-gray-300' : 'text-gray-600'">User Details</h4>
+              <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <span :class="isDark ? 'text-gray-400' : 'text-gray-500'">Name:</span>
+                <span :class="isDark ? 'text-white' : 'text-gray-800'">{{ user.firstName }} {{ user.lastName }}</span>
+                <span :class="isDark ? 'text-gray-400' : 'text-gray-500'">Email:</span>
+                <span :class="isDark ? 'text-white' : 'text-gray-800'">{{ user.email }}</span>
+                <span :class="isDark ? 'text-gray-400' : 'text-gray-500'">User ID:</span>
+                <span class="font-mono text-xs" :class="isDark ? 'text-white' : 'text-gray-800'">{{ user.id }}</span>
+              </div>
+            </div>
+
+            <!-- Base URL -->
+            <div class="space-y-2">
+              <h4 class="text-sm font-medium" :class="isDark ? 'text-gray-300' : 'text-gray-600'">Base URL</h4>
+              <div class="flex items-center gap-2">
+                <code
+                  class="flex-1 px-2 py-1 rounded text-sm font-mono truncate"
+                  :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+                >{{ authStore.baseUrl }}</code>
+                <button
+                  @click="copyBaseUrl"
+                  class="p-1.5 rounded transition-colors flex-shrink-0"
+                  :class="[
+                    isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                    baseUrlCopied ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                  ]"
+                  :title="baseUrlCopied ? 'Copied!' : 'Copy Base URL'"
+                >
+                  <svg v-if="baseUrlCopied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Access Token -->
+            <div class="space-y-2">
+              <h4 class="text-sm font-medium" :class="isDark ? 'text-gray-300' : 'text-gray-600'">Access Token</h4>
+              <div class="flex items-center gap-2">
+                <code
+                  class="flex-1 px-2 py-1 rounded text-sm font-mono truncate"
+                  :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+                >{{ showToken ? authStore.token : '••••••••••••••••••••••••••••••••' }}</code>
+                <button
+                  @click="showAndCopyToken"
+                  class="px-2 py-1 rounded text-xs font-medium transition-colors flex-shrink-0"
+                  :class="[
+                    tokenCopied
+                      ? (isDark ? 'bg-green-600 text-white' : 'bg-green-500 text-white')
+                      : (isDark ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white')
+                  ]"
+                >
+                  {{ tokenCopied ? 'Copied!' : (showToken ? 'Copy' : 'Show & Copy') }}
+                </button>
+              </div>
+              <div class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+                <span>Expires: {{ tokenExpirationFormatted }}</span>
+                <span class="mx-2">|</span>
+                <span :class="authStore.tokenExpiresIn < 300000 ? 'text-orange-500' : ''">
+                  Time remaining: {{ tokenTimeRemaining }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
+

@@ -194,4 +194,92 @@ test.describe('Authentication', () => {
 
     console.log('Logout test completed successfully')
   })
+
+  test('should open user info modal when clicking username', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    // Perform login first
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Verify logged in - wait for username button to appear
+    const usernameButton = page.locator('header button').filter({ hasText: /\w+ \w+/ }).first()
+    await expect(usernameButton).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Click username to open modal
+    await usernameButton.click()
+
+    // Modal should open with "User Info" heading
+    const modal = page.locator('[class*="fixed inset-0"]')
+    await expect(modal).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(page.getByRole('heading', { name: 'User Info' })).toBeVisible()
+
+    // Modal should show user details section
+    await expect(page.getByText('User Details')).toBeVisible()
+    await expect(page.getByText('Name:')).toBeVisible()
+    await expect(page.getByText('Email:')).toBeVisible()
+    await expect(page.getByText('User ID:')).toBeVisible()
+
+    // Modal should show Base URL section
+    await expect(page.getByText('Base URL')).toBeVisible()
+
+    // Modal should show Access Token section
+    await expect(page.getByText('Access Token')).toBeVisible()
+    await expect(page.getByText('Expires:')).toBeVisible()
+    await expect(page.getByText('Time remaining:')).toBeVisible()
+
+    // Should have Show & Copy button for token
+    await expect(page.getByRole('button', { name: /show.*copy/i })).toBeVisible()
+
+    console.log('User info modal test completed successfully')
+  })
+
+  test('should close user info modal with ESC key', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    // Perform login first
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Click username to open modal
+    const usernameButton = page.locator('header button').filter({ hasText: /\w+ \w+/ }).first()
+    await expect(usernameButton).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await usernameButton.click()
+
+    // Verify modal is open
+    await expect(page.getByRole('heading', { name: 'User Info' })).toBeVisible()
+
+    // Press ESC to close modal
+    await page.keyboard.press('Escape')
+
+    // Modal should be closed
+    await expect(page.getByRole('heading', { name: 'User Info' })).not.toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    console.log('User info modal ESC close test completed successfully')
+  })
+
+  test('should close user info modal by clicking outside', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    // Perform login first
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Click username to open modal
+    const usernameButton = page.locator('header button').filter({ hasText: /\w+ \w+/ }).first()
+    await expect(usernameButton).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await usernameButton.click()
+
+    // Verify modal is open
+    await expect(page.getByRole('heading', { name: 'User Info' })).toBeVisible()
+
+    // Click on backdrop to close modal
+    const backdrop = page.locator('.bg-black\\/50')
+    await backdrop.click({ position: { x: 10, y: 10 } })
+
+    // Modal should be closed
+    await expect(page.getByRole('heading', { name: 'User Info' })).not.toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    console.log('User info modal click outside close test completed successfully')
+  })
 })
