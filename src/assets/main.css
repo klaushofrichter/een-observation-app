@@ -28,3 +28,27 @@ body {
   background-color: #2563eb;
   border-color: #2563eb;
 }
+
+/* Dark mode scrollbar styling */
+.dark *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark *::-webkit-scrollbar-track {
+  background: #374151; /* gray-700 */
+  border-radius: 4px;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: #6b7280; /* gray-500 */
+  border-radius: 4px;
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* gray-400 */
+}
+
+.dark *::-webkit-scrollbar-corner {
+  background: #374151; /* gray-700 */
+}
