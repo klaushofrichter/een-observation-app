@@ -110,6 +110,51 @@ function getEventTypeName(type: string): string {
   return type
 }
 
+// Get formatted duration from event start/end timestamps
+function getEventDuration(event: Event): string | null {
+  if (!event.endTimestamp || !event.startTimestamp) return null
+
+  const startMs = new Date(event.startTimestamp).getTime()
+  const endMs = new Date(event.endTimestamp).getTime()
+  const diffMs = endMs - startMs
+
+  // Show nothing when duration is 0
+  if (diffMs <= 0) return null
+
+  // Show ms when below 1 second
+  if (diffMs < 1000) {
+    return `${diffMs}ms`
+  }
+
+  const diffSeconds = Math.floor(diffMs / 1000)
+
+  // Show seconds when below 2 minutes
+  if (diffSeconds < 120) {
+    return `${diffSeconds}s`
+  }
+
+  const diffMinutes = Math.floor(diffSeconds / 60)
+
+  // Show minutes and seconds when below 1 hour
+  if (diffSeconds < 3600) {
+    const remainingSeconds = diffSeconds % 60
+    return remainingSeconds > 0 ? `${diffMinutes}m ${remainingSeconds}s` : `${diffMinutes}m`
+  }
+
+  const diffHours = Math.floor(diffSeconds / 3600)
+
+  // Show hours and minutes when below 24 hours
+  if (diffSeconds < 86400) {
+    const remainingMinutes = Math.floor((diffSeconds % 3600) / 60)
+    return remainingMinutes > 0 ? `${diffHours}h ${remainingMinutes}m` : `${diffHours}h`
+  }
+
+  // Show days and hours for anything else
+  const diffDays = Math.floor(diffSeconds / 86400)
+  const remainingHours = Math.floor((diffSeconds % 86400) / 3600)
+  return remainingHours > 0 ? `${diffDays}d ${remainingHours}h` : `${diffDays}d`
+}
+
 // Get confidence display text from event data (handles single and multiple values)
 function getEventConfidence(event: Event): string | null {
   const data = event.data as Array<Record<string, unknown>> | undefined
@@ -629,7 +674,7 @@ watch(
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
           <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ getEventTypeName(event.type) }}<span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence</span>
+            {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence</span>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-400' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
