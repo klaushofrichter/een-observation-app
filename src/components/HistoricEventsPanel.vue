@@ -110,6 +110,29 @@ function getEventTypeName(type: string): string {
   return type
 }
 
+// Get confidence display text from event data (handles single and multiple values)
+function getEventConfidence(event: Event): string | null {
+  const data = event.data as Array<Record<string, unknown>> | undefined
+  if (!data || !Array.isArray(data)) return null
+
+  // Find all objectClassification entries and extract confidence values
+  const confidences = data
+    .filter(item => item.type === 'een.objectClassification.v1')
+    .map(item => item.confidence as number)
+    .filter(c => typeof c === 'number')
+
+  if (confidences.length === 0) return null
+
+  if (confidences.length === 1) {
+    return `${Math.round(confidences[0] * 100)}%`
+  }
+
+  // Multiple confidence values - show range
+  const min = Math.min(...confidences)
+  const max = Math.max(...confidences)
+  return `${Math.round(min * 100)}%-${Math.round(max * 100)}%`
+}
+
 // Format timestamp for display
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp)
@@ -606,9 +629,9 @@ watch(
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
           <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ getEventTypeName(event.type) }}
+            {{ getEventTypeName(event.type) }}<span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence</span>
           </div>
-          <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
+          <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-400' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
             <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(event.startTimestamp) }}</span>
           </div>

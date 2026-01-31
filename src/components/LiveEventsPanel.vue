@@ -558,15 +558,22 @@ function getNotificationActions(notification: Notification): string[] {
   return actions
 }
 
-// Get tooltip text for notification action
-function getNotificationActionTooltip(action: string): string {
+// Get tooltip text for notification action (includes description if available)
+function getNotificationActionTooltip(action: string, notification?: Notification): string {
   const tooltips: Record<string, string> = {
     email: 'Email notification',
     sms: 'SMS notification',
     push: 'Push notification',
     gui: 'GUI notification'
   }
-  return tooltips[action] || 'Notification (unknown type)'
+  const baseTooltip = tooltips[action] || 'Notification (unknown type)'
+
+  // Add description on second line if available
+  const description = (notification as unknown as { description?: string })?.description
+  if (description) {
+    return `${baseTooltip}\n${description}`
+  }
+  return baseTooltip
 }
 
 // Fetch event alert condition rules and match to notifications
@@ -954,7 +961,7 @@ defineExpose({
                 :key="action"
                 @click="showNotificationDetails(alert.notification!, $event)"
                 class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-                :title="getNotificationActionTooltip(action)"
+                :title="getNotificationActionTooltip(action, alert.notification)"
               >
                 <!-- Email icon -->
                 <svg v-if="action === 'email'" class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">

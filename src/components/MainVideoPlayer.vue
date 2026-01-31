@@ -212,20 +212,29 @@ const formattedCreatorId = computed(() => {
   return formatted
 })
 
-// Extract confidence from objectClassification data (e.g., 0.71 -> "71%")
+// Extract confidence from objectClassification data (handles multiple objects)
 const formattedConfidence = computed(() => {
   if (!props.playbackEventObject) return null
 
   const data = props.playbackEventObject.data as Array<Record<string, unknown>> | undefined
   if (!data || !Array.isArray(data)) return null
 
-  const classification = data.find(item => item.type === 'een.objectClassification.v1')
-  if (!classification) return null
+  // Find all objectClassification entries and extract confidence values
+  const confidences = data
+    .filter(item => item.type === 'een.objectClassification.v1')
+    .map(item => item.confidence as number)
+    .filter(c => typeof c === 'number')
 
-  const confidence = classification.confidence as number | undefined
-  if (typeof confidence !== 'number') return null
+  if (confidences.length === 0) return null
 
-  return `${Math.round(confidence * 100)}%`
+  if (confidences.length === 1) {
+    return `${Math.round(confidences[0] * 100)}%`
+  }
+
+  // Multiple confidence values - show range
+  const min = Math.min(...confidences)
+  const max = Math.max(...confidences)
+  return `between ${Math.round(min * 100)}% and ${Math.round(max * 100)}%`
 })
 
 // Handle event card click - seek to timestamp and toggle play/pause
@@ -576,7 +585,7 @@ onUnmounted(() => {
 
     <!-- Camera Info Panel -->
     <div
-      class="w-72 flex-shrink-0 rounded-lg p-4 overflow-y-auto border"
+      class="w-80 flex-shrink-0 rounded-lg p-4 overflow-y-auto border"
       :class="isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'"
     >
       <h3 :class="isDark ? 'text-white' : 'text-gray-800'" class="font-semibold text-lg mb-4">Camera Information</h3>
