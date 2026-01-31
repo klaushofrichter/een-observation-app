@@ -194,6 +194,40 @@ const eventDuration = computed(() => {
   }
 })
 
+// Format creatorId for display (e.g., "een.defaultCloudAnalytics.v1" -> "default Cloud Analytics")
+const formattedCreatorId = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  const creatorId = props.playbackEventObject.creatorId as string | undefined
+  if (!creatorId) return null
+
+  // Strip "een." prefix and version suffix like ".v1", ".v2", etc.
+  let formatted = creatorId
+    .replace(/^een\./, '')
+    .replace(/\.v\d+$/, '')
+
+  // Add spaces before uppercase letters (camelCase to "Camel Case")
+  formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2')
+
+  return formatted
+})
+
+// Extract confidence from objectClassification data (e.g., 0.71 -> "71%")
+const formattedConfidence = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  const data = props.playbackEventObject.data as Array<Record<string, unknown>> | undefined
+  if (!data || !Array.isArray(data)) return null
+
+  const classification = data.find(item => item.type === 'een.objectClassification.v1')
+  if (!classification) return null
+
+  const confidence = classification.confidence as number | undefined
+  if (typeof confidence !== 'number') return null
+
+  return `${Math.round(confidence * 100)}%`
+})
+
 // Handle event card click - seek to timestamp and toggle play/pause
 function handleEventCardClick() {
   const video = hlsPlayer.videoRef.value
@@ -619,6 +653,14 @@ onUnmounted(() => {
             >
               i
             </button>
+          </div>
+          <!-- Source (if available in event data) -->
+          <div v-if="formattedCreatorId" class="mt-1">
+            <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Source: {{ formattedCreatorId }}</span>
+          </div>
+          <!-- Confidence (if available from objectClassification) -->
+          <div v-if="formattedConfidence" class="mt-1">
+            <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs">Confidence: {{ formattedConfidence }}</span>
           </div>
           <!-- Event Duration (only for events, not alerts) -->
           <div v-if="!isAlertSource && eventDuration" class="mt-1">
