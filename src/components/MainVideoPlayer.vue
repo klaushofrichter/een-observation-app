@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useAuthStore } from 'een-api-toolkit'
+import { useAuthStore, getEvent } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
@@ -16,7 +16,11 @@ const props = defineProps<{
   playbackEventObject?: Record<string, unknown> | null
   isAlertSource?: boolean
   isDark?: boolean
+  eventsList?: Array<{ id: string; creatorId?: string }>
 }>()
+
+// Cache for fetched events (to avoid duplicate API calls)
+const fetchedEventsCache = new Map<string, string>()
 
 // Auth store for baseUrl and token
 const authStore = useAuthStore()
@@ -42,6 +46,9 @@ const isMounted = ref(true)
 // HLS playback state
 const isHlsPlaying = ref(true) // Assume playing initially since autoplay is enabled
 const currentVideoTime = ref(0) // Track current video time for bounding box display
+
+// Triggering event's creatorId (when current event has eventId reference)
+const triggeringEventCreatorId = ref<string | null>(null)
 
 // Calculate event end offset from event object timestamps
 const eventEndOffset = computed(() => {
@@ -180,7 +187,10 @@ const eventDuration = computed(() => {
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
 
-  if (seconds < 60) {
+  // Show milliseconds if duration is less than 1 second
+  if (diffMs > 0 && diffMs < 1000) {
+    return `${diffMs}ms`
+  } else if (seconds < 60) {
     return `${seconds}s`
   } else if (minutes < 60) {
     const remainingSeconds = seconds % 60
@@ -194,13 +204,8 @@ const eventDuration = computed(() => {
   }
 })
 
-// Format creatorId for display (e.g., "een.defaultCloudAnalytics.v1" -> "default Cloud Analytics")
-const formattedCreatorId = computed(() => {
-  if (!props.playbackEventObject) return null
-
-  const creatorId = props.playbackEventObject.creatorId as string | undefined
-  if (!creatorId) return null
-
+// Helper function to format creatorId (e.g., "een.defaultCloudAnalytics.v1" -> "default Cloud Analytics")
+function formatCreatorId(creatorId: string): string {
   // Strip "een." prefix and version suffix like ".v1", ".v2", etc.
   let formatted = creatorId
     .replace(/^een\./, '')
@@ -210,7 +215,69 @@ const formattedCreatorId = computed(() => {
   formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2')
 
   return formatted
+}
+
+// Format creatorId for display, including triggering event source if available
+const formattedCreatorId = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  const creatorId = props.playbackEventObject.creatorId as string | undefined
+  if (!creatorId) return null
+
+  let formattedCurrent = formatCreatorId(creatorId)
+
+  // Show "Event" instead of "events"
+  if (formattedCurrent === 'events') {
+    formattedCurrent = 'Event'
+  }
+
+  // If there's an eventId and we have the triggering event's creatorId, show both
+  const eventId = props.playbackEventObject.eventId as string | undefined
+  if (eventId && triggeringEventCreatorId.value) {
+    return `${formattedCurrent} ← ${triggeringEventCreatorId.value}`
+  }
+
+  return formattedCurrent
 })
+
+// Watch for playbackEventObject changes to fetch triggering event if eventId is present
+watch(() => props.playbackEventObject, async (newEventObject) => {
+  // Reset triggering event creatorId
+  triggeringEventCreatorId.value = null
+
+  if (!newEventObject) return
+
+  const eventId = newEventObject.eventId as string | undefined
+  if (!eventId) return
+
+  // First, check if we already have this event in the cache
+  if (fetchedEventsCache.has(eventId)) {
+    triggeringEventCreatorId.value = fetchedEventsCache.get(eventId) || null
+    return
+  }
+
+  // Second, check if the event is in the provided events list
+  if (props.eventsList) {
+    const existingEvent = props.eventsList.find(e => e.id === eventId)
+    if (existingEvent?.creatorId) {
+      const formattedTriggeringCreatorId = formatCreatorId(existingEvent.creatorId)
+      fetchedEventsCache.set(eventId, formattedTriggeringCreatorId)
+      triggeringEventCreatorId.value = formattedTriggeringCreatorId
+      return
+    }
+  }
+
+  // Finally, fetch from the API
+  const result = await getEvent(eventId)
+  if (!result.error && result.data) {
+    const triggeringCreatorId = result.data.creatorId
+    if (triggeringCreatorId) {
+      const formattedTriggeringCreatorId = formatCreatorId(triggeringCreatorId)
+      fetchedEventsCache.set(eventId, formattedTriggeringCreatorId)
+      triggeringEventCreatorId.value = formattedTriggeringCreatorId
+    }
+  }
+}, { immediate: true })
 
 // Extract confidence from objectClassification data (handles multiple objects)
 const formattedConfidence = computed(() => {

@@ -257,7 +257,7 @@ function insertEvent(event: Event): void {
 }
 
 // Expose insertEvent for parent component
-defineExpose({ insertEvent })
+defineExpose({ insertEvent, events })
 
 // Fetch historic events
 async function fetchEvents(append = false) {
