@@ -145,6 +145,9 @@ function handleSseEvent(event: Record<string, unknown>) {
   historicEventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof historicEventsPanelRef.value.insertEvent>[0])
 }
 
+// Computed events list from HistoricEventsPanel (for MainVideoPlayer to check before API calls)
+const eventsList = computed(() => historicEventsPanelRef.value?.events || [])
+
 onMounted(async () => {
   const result = await getCurrentUser()
 
@@ -200,6 +203,7 @@ onMounted(async () => {
               :playback-event-object="playbackEventObject"
               :is-alert-source="isAlertSource"
               :is-dark="isDark"
+              :events-list="eventsList"
             />
           </div>
 
