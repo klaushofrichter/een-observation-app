@@ -249,8 +249,8 @@ test.describe('Events System', () => {
     // Should have time range selector
     await expect(alertsPanel.locator('select')).toBeVisible()
 
-    // Should have refresh button
-    const refreshBtn = alertsPanel.getByRole('button', { name: /refresh|loading/i })
+    // Should have refresh button (use title to distinguish from "Load more" button)
+    const refreshBtn = alertsPanel.getByTitle('Refresh alerts')
     await expect(refreshBtn).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
 
     // Should have auto-refresh checkbox
