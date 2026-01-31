@@ -5,13 +5,15 @@ import {
   connectToEventSubscription,
   deleteEventSubscription,
   listAlerts,
-  listNotifications
+  listNotifications,
+  listEventAlertConditionRules
 } from 'een-api-toolkit'
-import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert, Notification } from 'een-api-toolkit'
+import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert, Notification, EventAlertConditionRule } from 'een-api-toolkit'
 
-// Extended alert type with optional notification data
+// Extended alert type with optional notification and rule data
 interface AlertWithNotification extends Alert {
   notification?: Notification
+  eventAlertConditionRule?: EventAlertConditionRule
 }
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
@@ -55,6 +57,14 @@ const hoverPosition = ref<{ bottom: number; right: number } | null>(null)
 const showNotificationModal = ref(false)
 const selectedNotification = ref<Notification | null>(null)
 const notificationCopied = ref(false)
+
+// Event Alert Condition Rule modal state
+const showRuleModal = ref(false)
+const selectedRule = ref<EventAlertConditionRule | null>(null)
+const ruleCopied = ref(false)
+
+// Store for all event alert condition rules
+const eventAlertConditionRules = ref<Map<string, EventAlertConditionRule>>(new Map())
 
 // Event type filter state for alerts
 const eventFilterEnabled = ref(false)
@@ -533,11 +543,107 @@ async function fetchAndMergeNotifications() {
   }
 }
 
+// Helper to get serviceRuleId from notification (may not be typed)
+function getServiceRuleIdFromNotification(notification: Notification): string | undefined {
+  // serviceRuleId exists in the API response but may not be typed
+  return (notification as unknown as { serviceRuleId?: string }).serviceRuleId
+}
+
+// Get notification actions for display (returns array of action types)
+function getNotificationActions(notification: Notification): string[] {
+  const actions = notification.notificationActions
+  if (!actions || actions.length === 0) {
+    return ['unknown']
+  }
+  return actions
+}
+
+// Get tooltip text for notification action
+function getNotificationActionTooltip(action: string): string {
+  const tooltips: Record<string, string> = {
+    email: 'Email notification',
+    sms: 'SMS notification',
+    push: 'Push notification',
+    gui: 'GUI notification'
+  }
+  return tooltips[action] || 'Notification (unknown type)'
+}
+
+// Fetch event alert condition rules and match to notifications
+async function fetchAndMatchEventAlertConditionRules() {
+  // Check if any alerts have notifications with serviceRuleId
+  const alertsWithNotificationRuleId = alerts.value.filter(alert => {
+    if (!alert.notification) return false
+    return getServiceRuleIdFromNotification(alert.notification)
+  })
+  if (alertsWithNotificationRuleId.length === 0) return
+
+  // Get unique serviceRuleIds that we need to fetch
+  const uniqueRuleIds = new Set<string>()
+  for (const alert of alertsWithNotificationRuleId) {
+    const ruleId = getServiceRuleIdFromNotification(alert.notification!)
+    if (ruleId) {
+      uniqueRuleIds.add(ruleId)
+    }
+  }
+
+  // Only fetch rules we don't already have
+  const ruleIdsToFetch = Array.from(uniqueRuleIds).filter(id => !eventAlertConditionRules.value.has(id))
+
+  if (ruleIdsToFetch.length > 0) {
+    // Fetch all event alert condition rules
+    const result = await listEventAlertConditionRules({
+      pageSize: 100
+    })
+
+    if (!result.error && result.data) {
+      // Store rules in map for quick lookup
+      for (const rule of result.data.results) {
+        eventAlertConditionRules.value.set(rule.id, rule)
+      }
+    }
+  }
+
+  // Match rules to alerts that have notifications with serviceRuleId
+  for (const alert of alerts.value) {
+    if (alert.notification) {
+      const ruleId = getServiceRuleIdFromNotification(alert.notification)
+      if (ruleId) {
+        const rule = eventAlertConditionRules.value.get(ruleId)
+        if (rule) {
+          alert.eventAlertConditionRule = rule
+        }
+      }
+    }
+  }
+}
+
 // Show notification modal
 function showNotificationDetails(notification: Notification, event: MouseEvent) {
   event.stopPropagation() // Prevent alert click
   selectedNotification.value = notification
   showNotificationModal.value = true
+}
+
+// Show rule modal
+function showRuleDetails(rule: EventAlertConditionRule, event: MouseEvent) {
+  event.stopPropagation() // Prevent alert click
+  selectedRule.value = rule
+  showRuleModal.value = true
+}
+
+// Copy rule data to clipboard
+async function copyRuleToClipboard() {
+  if (!selectedRule.value) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(selectedRule.value, null, 2))
+    ruleCopied.value = true
+    setTimeout(() => {
+      ruleCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+  }
 }
 
 // Copy notification data to clipboard
@@ -554,20 +660,31 @@ async function copyNotificationToClipboard() {
   }
 }
 
-// Handle ESC key to close notification modal
-function handleNotificationEscKey(event: KeyboardEvent) {
+// Handle ESC key to close modals
+function handleModalEscKey(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     showNotificationModal.value = false
+    showRuleModal.value = false
   }
 }
 
 // Watch notification modal state to add/remove ESC key listener
 watch(showNotificationModal, (isOpen) => {
   if (isOpen) {
-    document.addEventListener('keydown', handleNotificationEscKey)
+    document.addEventListener('keydown', handleModalEscKey)
   } else {
-    document.removeEventListener('keydown', handleNotificationEscKey)
+    document.removeEventListener('keydown', handleModalEscKey)
     selectedNotification.value = null
+  }
+})
+
+// Watch rule modal state to add/remove ESC key listener
+watch(showRuleModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleModalEscKey)
+  } else {
+    document.removeEventListener('keydown', handleModalEscKey)
+    selectedRule.value = null
   }
 })
 
@@ -620,6 +737,9 @@ async function fetchAlerts(append = false) {
 
     // Fetch notifications and merge with alerts
     await fetchAndMergeNotifications()
+
+    // Fetch event alert condition rules and match to notifications
+    await fetchAndMatchEventAlertConditionRules()
   }
 
   alertsLoading.value = false
@@ -690,7 +810,7 @@ if (props.camera) {
 onUnmounted(async () => {
   await disconnect()
   stopRefreshTimer()
-  document.removeEventListener('keydown', handleNotificationEscKey)
+  document.removeEventListener('keydown', handleModalEscKey)
 })
 
 // Expose toggle function and state for parent component
@@ -827,15 +947,48 @@ defineExpose({
             <span class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
               {{ alert.alertName || getAlertTypeName(alert.alertType) }}
             </span>
-            <!-- Notification Icon (if notification exists for this alert) -->
+            <!-- Notification Icons (if notification exists for this alert) -->
+            <template v-if="alert.notification">
+              <button
+                v-for="action in getNotificationActions(alert.notification)"
+                :key="action"
+                @click="showNotificationDetails(alert.notification!, $event)"
+                class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                :title="getNotificationActionTooltip(action)"
+              >
+                <!-- Email icon -->
+                <svg v-if="action === 'email'" class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <!-- SMS icon (chat bubble) -->
+                <svg v-else-if="action === 'sms'" class="w-3.5 h-3.5" :class="isDark ? 'text-green-400' : 'text-green-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <!-- Push notification icon (bell) -->
+                <svg v-else-if="action === 'push'" class="w-3.5 h-3.5" :class="isDark ? 'text-yellow-400' : 'text-yellow-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <!-- GUI icon (desktop/monitor) -->
+                <svg v-else-if="action === 'gui'" class="w-3.5 h-3.5" :class="isDark ? 'text-cyan-400' : 'text-cyan-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <!-- Unknown/default icon (drum) -->
+                <svg v-else class="w-3.5 h-3.5" :class="isDark ? 'text-gray-400' : 'text-gray-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <ellipse cx="12" cy="8" rx="8" ry="4" stroke-width="2" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8v8c0 2.21 3.58 4 8 4s8-1.79 8-4V8" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c0 2.21 3.58 4 8 4s8-1.79 8-4" />
+                </svg>
+              </button>
+            </template>
+            <!-- Event Alert Condition Rule Icon (if rule exists for this alert's notification) -->
             <button
-              v-if="alert.notification"
-              @click="showNotificationDetails(alert.notification!, $event)"
+              v-if="alert.eventAlertConditionRule"
+              @click="showRuleDetails(alert.eventAlertConditionRule!, $event)"
               class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-              title="View notification details"
+              title="View event alert condition rule"
             >
-              <svg class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              <svg class="w-3.5 h-3.5" :class="isDark ? 'text-purple-400' : 'text-purple-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </button>
           </div>
@@ -953,6 +1106,72 @@ defineExpose({
               class="text-xs font-mono p-4 rounded overflow-auto"
               :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
             >{{ JSON.stringify(selectedNotification, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Event Alert Condition Rule Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showRuleModal && selectedRule"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        @click.self="showRuleModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showRuleModal = false" />
+
+        <!-- Modal -->
+        <div
+          class="relative rounded-lg shadow-xl max-h-[80vh] flex flex-col"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+          style="width: 80%"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">Event Alert Condition Rule</h3>
+            <div class="flex items-center gap-2">
+              <!-- Copy Button -->
+              <button
+                @click="copyRuleToClipboard"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  ruleCopied ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                ]"
+                :title="ruleCopied ? 'Copied!' : 'Copy to clipboard'"
+              >
+                <!-- Checkmark icon when copied -->
+                <svg v-if="ruleCopied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <!-- Copy icon -->
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <!-- Close Button -->
+              <button
+                @click="showRuleModal = false"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'
+                ]"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 overflow-auto flex-1">
+            <pre
+              class="text-xs font-mono p-4 rounded overflow-auto"
+              :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+            >{{ JSON.stringify(selectedRule, null, 2) }}</pre>
           </div>
         </div>
       </div>
