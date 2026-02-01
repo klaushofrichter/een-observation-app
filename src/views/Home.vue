@@ -34,15 +34,27 @@ const user = ref<UserProfile | null>(null)
 const loading = ref(true)
 const error = ref<EenError | null>(null)
 
+// Parse and deduplicate comma-separated IDs
+function parseAndDedupeIds(idString: string): string[] {
+  const ids = idString.split(',').map(id => id.trim()).filter(id => id.length > 0)
+  return [...new Set(ids)]
+}
+
 // Get initial camera ID from sessionStorage (set by router guard)
 const initialCameraId = computed(() => {
   // First try sessionStorage (set by router guard before navigation)
   const stored = sessionStorage.getItem('een_url_camera_ids')
-  if (stored) return stored
+  if (stored) {
+    // Return deduplicated IDs as comma-separated string
+    return parseAndDedupeIds(stored).join(',')
+  }
 
   // Fallback to route.query
   const id = route.query.id
-  return typeof id === 'string' ? id : null
+  if (typeof id === 'string') {
+    return parseAndDedupeIds(id).join(',')
+  }
+  return null
 })
 
 // Get initial selected camera from sessionStorage
@@ -60,7 +72,7 @@ const initialSelectedCameraId = computed(() => {
   const idParam = initialCameraId.value
   if (!idParam) return null
 
-  const idList = idParam.split(',').map(id => id.trim())
+  const idList = parseAndDedupeIds(idParam)
   return idList.includes(selected) ? selected : null
 })
 

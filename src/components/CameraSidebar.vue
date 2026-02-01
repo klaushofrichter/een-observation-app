@@ -270,8 +270,9 @@ onMounted(async () => {
   // Check for URL camera IDs in sessionStorage
   const storedCameraIds = sessionStorage.getItem('een_url_camera_ids')
   if (storedCameraIds) {
-    // Parse comma-separated camera IDs
-    urlCameraIds.value = storedCameraIds.split(',').map(id => id.trim()).filter(id => id.length > 0)
+    // Parse comma-separated camera IDs and remove duplicates
+    const parsedIds = storedCameraIds.split(',').map(id => id.trim()).filter(id => id.length > 0)
+    urlCameraIds.value = [...new Set(parsedIds)]
     // Auto-select "URL-cameras" if we have URL camera IDs
     if (urlCameraIds.value.length > 0) {
       selectedLayoutId.value = 'url'
