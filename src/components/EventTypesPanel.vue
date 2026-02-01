@@ -19,6 +19,9 @@ const availableEventTypes = ref<string[]>([])
 const selectedEventTypes = ref<string[]>([])
 const eventTypeNames = ref<Map<string, string>>(new Map())
 
+// Track if this is the first camera selection (for default selection behavior)
+const isFirstCameraSelection = ref(true)
+
 // Motion detection event type constant
 const MOTION_DETECTION_EVENT = 'een.motionDetectionEvent.v1'
 
@@ -77,6 +80,9 @@ async function fetchAvailableEventTypes() {
     return
   }
 
+  // Remember previously selected event types before fetching new ones
+  const previouslySelectedTypes = [...selectedEventTypes.value]
+
   loading.value = true
   error.value = null
 
@@ -92,14 +98,22 @@ async function fetchAvailableEventTypes() {
   } else {
     availableEventTypes.value = result.data.type || []
 
-    // Preselect motion detection if available, otherwise select all
-    if (availableEventTypes.value.includes(MOTION_DETECTION_EVENT)) {
-      selectedEventTypes.value = [MOTION_DETECTION_EVENT]
-    } else if (availableEventTypes.value.length > 0) {
-      // If no motion detection, select the first available type
-      selectedEventTypes.value = [availableEventTypes.value[0]]
+    if (isFirstCameraSelection.value) {
+      // First camera: preselect motion detection if available, otherwise first type
+      isFirstCameraSelection.value = false
+      if (availableEventTypes.value.includes(MOTION_DETECTION_EVENT)) {
+        selectedEventTypes.value = [MOTION_DETECTION_EVENT]
+      } else if (availableEventTypes.value.length > 0) {
+        selectedEventTypes.value = [availableEventTypes.value[0]]
+      } else {
+        selectedEventTypes.value = []
+      }
     } else {
-      selectedEventTypes.value = []
+      // Subsequent cameras: keep only previously selected types that are available
+      const intersection = previouslySelectedTypes.filter(type =>
+        availableEventTypes.value.includes(type)
+      )
+      selectedEventTypes.value = intersection
     }
 
     emit('update:selectedTypes', selectedEventTypes.value)
