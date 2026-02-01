@@ -9,6 +9,7 @@ import ErrorCameraCard from './ErrorCameraCard.vue'
 const props = defineProps<{
   selectedCameraId: string | null
   initialCameraId?: string | null
+  initialSelectedCameraId?: string | null
   isLivePlayback?: boolean
 }>()
 
@@ -202,9 +203,9 @@ function applyLayoutFilter() {
   // Current camera not in list or not visible on first page - select camera
   currentPage.value = 1
   if (cameras.value.length > 0) {
-    // Check if initialCameraId is provided and exists in the list
-    if (props.initialCameraId) {
-      const initialCamera = cameras.value.find(cam => cam.id === props.initialCameraId)
+    // Check if initialSelectedCameraId is provided and exists in the list
+    if (props.initialSelectedCameraId) {
+      const initialCamera = cameras.value.find(cam => cam.id === props.initialSelectedCameraId)
       if (initialCamera) {
         // Find which page the initial camera is on and navigate there
         const cameraIndex = cameras.value.indexOf(initialCamera)

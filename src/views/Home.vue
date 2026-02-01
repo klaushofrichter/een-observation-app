@@ -33,10 +33,16 @@ const user = ref<UserProfile | null>(null)
 const loading = ref(true)
 const error = ref<EenError | null>(null)
 
-// Get initial camera ID from URL query parameter
+// Get initial camera ID from URL query parameter (for visible cameras filter)
 const initialCameraId = computed(() => {
   const id = route.query.id
   return typeof id === 'string' ? id : null
+})
+
+// Get initial selected camera from URL query parameter
+const initialSelectedCameraId = computed(() => {
+  const selected = route.query.selected
+  return typeof selected === 'string' ? selected : null
 })
 
 // Selected camera state
@@ -45,14 +51,30 @@ const selectedCamera = ref<Camera | null>(null)
 // Visible cameras state (for URL sync)
 const visibleCameraIds = ref<string[]>([])
 
+// Update URL with both visible cameras and selected camera
+function updateUrl() {
+  const newQuery: Record<string, string> = {}
+
+  if (visibleCameraIds.value.length > 0) {
+    newQuery.id = visibleCameraIds.value.join(',')
+  }
+
+  if (selectedCamera.value) {
+    newQuery.selected = selectedCamera.value.id
+  }
+
+  // Only update if different to avoid unnecessary history entries
+  const currentId = route.query.id as string | undefined
+  const currentSelected = route.query.selected as string | undefined
+  if (currentId !== newQuery.id || currentSelected !== newQuery.selected) {
+    router.replace({ query: newQuery })
+  }
+}
+
 // Update URL when visible cameras change
 function handleVisibleCamerasChanged(cameraIds: string[]) {
   visibleCameraIds.value = cameraIds
-  const newQuery = cameraIds.length > 0 ? { id: cameraIds.join(',') } : {}
-  // Only update if different to avoid unnecessary history entries
-  if (route.query.id !== newQuery.id) {
-    router.replace({ query: newQuery })
-  }
+  updateUrl()
 }
 
 // Playback state - when an event is clicked, switch from live to recorded playback
@@ -84,6 +106,8 @@ function handleCameraSelect(camera: Camera) {
   playbackEventObject.value = null
   activeAlertId.value = null
   isAlertSource.value = false
+  // Update URL with selected camera
+  updateUrl()
 }
 
 // Handle event click - switch to recorded playback
@@ -189,6 +213,7 @@ onMounted(async () => {
       <CameraSidebar
         :selected-camera-id="selectedCameraId"
         :initial-camera-id="initialCameraId"
+        :initial-selected-camera-id="initialSelectedCameraId"
         :is-live-playback="playbackMode === 'live'"
         @select-camera="handleCameraSelect"
         @visible-cameras-changed="handleVisibleCamerasChanged"
