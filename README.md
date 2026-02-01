@@ -143,7 +143,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 - Node.js 18+
 - An Eagle Eye Networks account
 - OAuth client credentials (client ID)
-- An OAuth proxy URL (see [een-api-toolkit documentation](https://www.npmjs.com/package/een-api-toolkit))
+- An OAuth proxy URL (see [een-api-toolkit documentation](https://www.npmjs.com/package/een-api-toolkit) or [een-oauth-proxy](https://github.com/klaushofrichter/een-oauth-proxy) for an implementation)
 
 ## Setup
 
