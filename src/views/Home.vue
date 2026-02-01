@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, inject, watch } from 'vue'
+import { ref, onMounted, computed, inject } from 'vue'
 import type { Ref } from 'vue'
 import { getCurrentUser } from 'een-api-toolkit'
 import type { Camera } from 'een-api-toolkit'
@@ -42,14 +42,18 @@ const initialCameraId = computed(() => {
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
-// Update URL when camera selection changes
-watch(selectedCamera, (camera) => {
-  const newQuery = camera ? { id: camera.id } : {}
+// Visible cameras state (for URL sync)
+const visibleCameraIds = ref<string[]>([])
+
+// Update URL when visible cameras change
+function handleVisibleCamerasChanged(cameraIds: string[]) {
+  visibleCameraIds.value = cameraIds
+  const newQuery = cameraIds.length > 0 ? { id: cameraIds.join(',') } : {}
   // Only update if different to avoid unnecessary history entries
   if (route.query.id !== newQuery.id) {
     router.replace({ query: newQuery })
   }
-})
+}
 
 // Playback state - when an event is clicked, switch from live to recorded playback
 const playbackMode = ref<'live' | 'recorded'>('live')
@@ -187,6 +191,7 @@ onMounted(async () => {
         :initial-camera-id="initialCameraId"
         :is-live-playback="playbackMode === 'live'"
         @select-camera="handleCameraSelect"
+        @visible-cameras-changed="handleVisibleCamerasChanged"
       />
 
       <!-- Main Content Area -->

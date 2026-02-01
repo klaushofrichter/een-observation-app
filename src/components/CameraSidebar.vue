@@ -17,6 +17,7 @@ const isDark = inject<Ref<boolean>>('isDark', ref(false))
 
 const emit = defineEmits<{
   'select-camera': [camera: Camera]
+  'visible-cameras-changed': [cameraIds: string[]]
 }>()
 
 // Camera data state
@@ -175,6 +176,9 @@ function applyLayoutFilter() {
 
   // Total size includes accessible cameras + inaccessible error cards
   totalSize.value = cameras.value.length + inaccessibleCameraIds.value.length
+
+  // Emit visible camera IDs for URL sync
+  emit('visible-cameras-changed', cameras.value.map(cam => cam.id))
 
   // Check if current camera is in the filtered list
   const currentCameraId = props.selectedCameraId
