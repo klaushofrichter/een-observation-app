@@ -178,9 +178,6 @@ function applyLayoutFilter() {
   // Total size includes accessible cameras + inaccessible error cards
   totalSize.value = cameras.value.length + inaccessibleCameraIds.value.length
 
-  // Emit visible camera IDs for URL sync
-  emit('visible-cameras-changed', cameras.value.map(cam => cam.id))
-
   // Check if current camera is in the filtered list
   const currentCameraId = props.selectedCameraId
   const currentCameraIndex = currentCameraId
@@ -195,7 +192,7 @@ function applyLayoutFilter() {
     if (isVisibleOnFirstPage) {
       // Keep current camera selected, reset to first page
       currentPage.value = 1
-      // Don't emit - keep existing selection
+      emitVisibleCameras()
       return
     }
   }
@@ -211,12 +208,14 @@ function applyLayoutFilter() {
         const cameraIndex = cameras.value.indexOf(initialCamera)
         currentPage.value = Math.floor(cameraIndex / camerasPerPage.value) + 1
         emit('select-camera', initialCamera)
+        emitVisibleCameras()
         return
       }
     }
     // Fall back to first camera
     emit('select-camera', cameras.value[0])
   }
+  emitVisibleCameras()
 }
 
 // Handle layout selection change
@@ -226,16 +225,30 @@ function handleLayoutChange(event: Event) {
   applyLayoutFilter()
 }
 
+// Get camera IDs visible on current page
+function getVisibleCameraIds(): string[] {
+  const start = (currentPage.value - 1) * camerasPerPage.value
+  const end = start + camerasPerPage.value
+  return cameras.value.slice(start, end).map(cam => cam.id)
+}
+
+// Emit visible camera IDs for URL sync
+function emitVisibleCameras() {
+  emit('visible-cameras-changed', getVisibleCameraIds())
+}
+
 // Pagination navigation
 function nextPage() {
   if (hasNextPage.value) {
     currentPage.value++
+    emitVisibleCameras()
   }
 }
 
 function prevPage() {
   if (hasPrevPage.value) {
     currentPage.value--
+    emitVisibleCameras()
   }
 }
 
@@ -260,6 +273,9 @@ function handleResize() {
     // Recalculate current page to keep roughly same cameras visible
     const newPage = Math.floor(currentFirstCameraIndex / newCardsPerPage) + 1
     currentPage.value = Math.max(1, Math.min(newPage, totalPages.value))
+
+    // Emit updated visible cameras after resize
+    emitVisibleCameras()
   }
 }
 
