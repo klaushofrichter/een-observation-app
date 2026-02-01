@@ -40,9 +40,17 @@ const initialCameraId = computed(() => {
 })
 
 // Get initial selected camera from URL query parameter
+// Only valid if the selected ID is part of the id list
 const initialSelectedCameraId = computed(() => {
   const selected = route.query.selected
-  return typeof selected === 'string' ? selected : null
+  if (typeof selected !== 'string') return null
+
+  // Validate that selected is part of the id list
+  const idParam = route.query.id
+  if (typeof idParam !== 'string') return null
+
+  const idList = idParam.split(',').map(id => id.trim())
+  return idList.includes(selected) ? selected : null
 })
 
 // Selected camera state
