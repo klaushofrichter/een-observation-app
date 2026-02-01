@@ -34,28 +34,44 @@ const user = ref<UserProfile | null>(null)
 const loading = ref(true)
 const error = ref<EenError | null>(null)
 
-// Get initial camera ID from URL query parameter (for visible cameras filter)
+// Get initial camera ID from sessionStorage (set by router guard)
 const initialCameraId = computed(() => {
+  // First try sessionStorage (set by router guard before navigation)
+  const stored = sessionStorage.getItem('een_url_camera_ids')
+  if (stored) return stored
+
+  // Fallback to route.query
   const id = route.query.id
   return typeof id === 'string' ? id : null
 })
 
-// Get initial selected camera from URL query parameter
+// Get initial selected camera from sessionStorage
 // Only valid if the selected ID is part of the id list
 const initialSelectedCameraId = computed(() => {
-  const selected = route.query.selected
-  if (typeof selected !== 'string') return null
+  // First try sessionStorage
+  let selected = sessionStorage.getItem('een_url_selected')
+  if (!selected) {
+    const querySelected = route.query.selected
+    selected = typeof querySelected === 'string' ? querySelected : null
+  }
+  if (!selected) return null
 
   // Validate that selected is part of the id list
-  const idParam = route.query.id
-  if (typeof idParam !== 'string') return null
+  const idParam = initialCameraId.value
+  if (!idParam) return null
 
   const idList = idParam.split(',').map(id => id.trim())
   return idList.includes(selected) ? selected : null
 })
 
-// Get initial event type hashes from URL query parameter
+// Get initial event type hashes from sessionStorage (set by router guard)
+// This is more reliable than route.query which may not be ready on initial render
 const initialEventHashes = computed(() => {
+  // First try sessionStorage (set by router guard before navigation)
+  const stored = sessionStorage.getItem('een_url_events')
+  if (stored) return stored
+
+  // Fallback to route.query
   const events = route.query.events
   return typeof events === 'string' ? events : null
 })
