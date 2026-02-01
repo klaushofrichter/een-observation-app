@@ -10,6 +10,8 @@ export interface HlsPlayerReturn {
   loadingVideo: Ref<boolean>
   videoRef: Ref<HTMLVideoElement | null>
   eventStartOffset: Ref<number>
+  clipStartTimestamp: Ref<string | null>
+  clipEndTimestamp: Ref<string | null>
   loadVideo: (deviceId: string, timestamp: string) => Promise<void>
   resetVideo: () => void
   destroyHls: () => void
@@ -28,6 +30,8 @@ export function useHlsPlayer(): HlsPlayerReturn {
   let hlsInstance: Hls | null = null
   let mediaSessionInitialized = false
   const eventStartOffset = ref(0) // Offset to seek to after manifest loads (in seconds)
+  const clipStartTimestamp = ref<string | null>(null) // Start timestamp of the current media clip
+  const clipEndTimestamp = ref<string | null>(null) // End timestamp of the current media clip
 
   // Initialize media session (required for some HLS configurations)
   async function ensureMediaSession(): Promise<boolean> {
@@ -158,6 +162,10 @@ export function useHlsPlayer(): HlsPlayerReturn {
     const intervalStartMs = new Date(interval.startTimestamp).getTime()
     eventStartOffset.value = Math.max(0, (targetTimeMs - intervalStartMs) / 1000)
 
+    // Store the clip timestamps for export
+    clipStartTimestamp.value = interval.startTimestamp
+    clipEndTimestamp.value = interval.endTimestamp
+
     videoUrl.value = interval.hlsUrl
     loadingVideo.value = false
 
@@ -172,6 +180,8 @@ export function useHlsPlayer(): HlsPlayerReturn {
     videoError.value = null
     loadingVideo.value = false
     eventStartOffset.value = 0
+    clipStartTimestamp.value = null
+    clipEndTimestamp.value = null
   }
 
   // Seek back to the original event timestamp
@@ -191,6 +201,8 @@ export function useHlsPlayer(): HlsPlayerReturn {
     loadingVideo,
     videoRef,
     eventStartOffset,
+    clipStartTimestamp,
+    clipEndTimestamp,
     loadVideo,
     resetVideo,
     destroyHls,

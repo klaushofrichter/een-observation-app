@@ -3,6 +3,8 @@ import { ref, computed, onMounted, watch, provide, onUnmounted } from 'vue'
 import { useAuthStore, getCurrentUser } from 'een-api-toolkit'
 import { useRoute } from 'vue-router'
 import { useDarkMode } from '@/composables/useDarkMode'
+import { useVideoExport } from '@/composables/useVideoExport'
+import ExportStatusModal from '@/components/ExportStatusModal.vue'
 import { version } from '../package.json'
 
 interface UserProfile {
@@ -19,6 +21,10 @@ const route = useRoute()
 
 // Dark mode
 const { isDark, toggle: toggleDarkMode } = useDarkMode()
+
+// Video export state
+const { status: exportStatus, progressPercent: exportProgress, isActive: exportIsActive } = useVideoExport()
+const showExportModal = ref(false)
 
 // Provide dark mode state to child components
 provide('isDark', isDark)
@@ -147,6 +153,42 @@ watch(() => authStore.isAuthenticated, loadUser)
           <span class="text-xs opacity-70 font-normal">v{{ version }}</span>
         </a>
         <div class="flex items-center gap-4 text-sm">
+          <!-- Export Status Icon (visible when export/download active) -->
+          <button
+            v-if="exportIsActive"
+            @click="showExportModal = true"
+            class="p-1.5 rounded-lg hover:bg-white/10 transition-colors relative"
+            title="View export progress"
+          >
+            <!-- Spinning circle icon for exporting -->
+            <svg
+              v-if="exportStatus === 'exporting'"
+              class="w-5 h-5 animate-spin"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <!-- Bouncing download icon for downloading -->
+            <svg
+              v-else-if="exportStatus === 'downloading'"
+              class="w-5 h-5 animate-bounce"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <!-- Progress badge -->
+            <span
+              class="absolute -top-1 -right-1 text-[10px] font-bold bg-een-accent text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1"
+            >
+              {{ exportProgress }}
+            </span>
+          </button>
+
           <!-- Dark Mode Toggle -->
           <button
             @click="toggleDarkMode"
@@ -290,6 +332,12 @@ watch(() => authStore.isAuthenticated, loadUser)
         </div>
       </div>
     </Teleport>
+
+    <!-- Export Status Modal -->
+    <ExportStatusModal
+      :show="showExportModal"
+      @close="showExportModal = false"
+    />
   </div>
 </template>
 

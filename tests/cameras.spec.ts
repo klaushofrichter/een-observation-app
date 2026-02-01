@@ -48,20 +48,35 @@ async function isProxyAccessible(): Promise<boolean> {
 async function performLogin(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/login')
   await page.click('button:has-text("Login with Eagle Eye Networks")')
-  await page.waitForURL(/.*eagleeyenetworks.com.*/, { timeout: TIMEOUTS.OAUTH_REDIRECT })
 
-  const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
-  await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })
-  await emailInput.fill(username)
-  await page.getByRole('button', { name: 'Next' }).click()
+  // Wait for either EEN OAuth page or redirect back to app (if OAuth session exists)
+  await Promise.race([
+    page.waitForURL(/.*eagleeyenetworks.com.*/, { timeout: TIMEOUTS.OAUTH_REDIRECT }),
+    page.waitForURL(/127\.0\.0\.1:3333/, { timeout: TIMEOUTS.OAUTH_REDIRECT })
+  ])
 
-  const passwordInput = page.locator('#authentication--input__password, input[type="password"]')
-  await passwordInput.waitFor({ state: 'visible', timeout: TIMEOUTS.PASSWORD_VISIBLE })
-  await passwordInput.fill(password)
-  await page.locator('#next, button:has-text("Sign in")').first().click()
+  // Check if we're on the EEN OAuth page or already redirected back
+  const currentUrl = page.url()
+  if (currentUrl.includes('eagleeyenetworks.com')) {
+    // Need to complete OAuth login form
+    const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
+    await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })
+    await emailInput.fill(username)
+    await page.getByRole('button', { name: 'Next' }).click()
 
-  await page.waitForURL(/127\.0\.0\.1:3333/, { timeout: TIMEOUTS.AUTH_COMPLETE })
-  await page.waitForURL('**/', { timeout: TIMEOUTS.AUTH_COMPLETE })
+    const passwordInput = page.locator('#authentication--input__password, input[type="password"]')
+    await passwordInput.waitFor({ state: 'visible', timeout: TIMEOUTS.PASSWORD_VISIBLE })
+    await passwordInput.fill(password)
+    await page.locator('#next, button:has-text("Sign in")').first().click()
+
+    await page.waitForURL(/127\.0\.0\.1:3333/, { timeout: TIMEOUTS.AUTH_COMPLETE })
+  }
+
+  // Wait for callback processing to complete and land on home page (with or without query params)
+  await page.waitForFunction(
+    () => window.location.pathname === '/' && !window.location.search.includes('code='),
+    { timeout: TIMEOUTS.AUTH_COMPLETE }
+  )
 }
 
 async function clearAuthState(page: Page): Promise<void> {
@@ -260,5 +275,76 @@ test.describe('Camera Selection and Video', () => {
     expect(hasKnownStatus).toBe(true)
 
     console.log('Camera status badges test completed successfully')
+  })
+
+  test('should restore camera selection from URL after logout and login', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera cards to load
+    const sidebar = page.locator('.camera-sidebar')
+    const cameraCards = sidebar.locator('.camera-card')
+    await expect(cameraCards.first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    const cardCount = await cameraCards.count()
+    if (cardCount < 2) {
+      console.log('Only one camera available, using first camera for URL test')
+    }
+
+    // Click on a camera (use second if available, otherwise first)
+    const targetIndex = cardCount > 1 ? 1 : 0
+    const targetCard = cameraCards.nth(targetIndex)
+    const targetCameraId = await targetCard.getAttribute('data-camera-id')
+    const targetCameraName = await targetCard.locator('h3').textContent()
+    console.log(`Selecting camera: ${targetCameraName} (ID: ${targetCameraId})`)
+
+    await targetCard.click()
+
+    // Wait for URL to update with ?id= parameter
+    await page.waitForURL(/\?id=/, { timeout: TIMEOUTS.UI_UPDATE })
+    const urlWithCamera = page.url()
+    console.log(`URL with camera ID: ${urlWithCamera}`)
+
+    // Verify URL contains the camera ID
+    expect(urlWithCamera).toContain(`?id=${targetCameraId}`)
+
+    // Verify main video player shows the selected camera
+    const mainVideoPlayer = page.locator('.main-video-player')
+    await expect(mainVideoPlayer).toHaveAttribute('data-camera-id', targetCameraId || '', { timeout: TIMEOUTS.VIDEO_LOAD })
+
+    // Logout
+    await page.getByRole('link', { name: /logout/i }).click()
+    await expect(page.getByRole('heading', { name: /logged out/i })).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    console.log('Logged out successfully')
+
+    // Clear auth state
+    await clearAuthState(page)
+
+    // Navigate to the captured URL with camera ID
+    console.log(`Navigating to URL: ${urlWithCamera}`)
+    await page.goto(urlWithCamera)
+
+    // Should redirect to login (unauthenticated)
+    await expect(page).toHaveURL('/login')
+
+    // Login again
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // After login, should be on home page with the camera ID in URL
+    await expect(page).toHaveURL(/\?id=/, { timeout: TIMEOUTS.UI_UPDATE })
+    const finalUrl = page.url()
+    console.log(`Final URL after login: ${finalUrl}`)
+
+    // Verify the camera ID is preserved in the URL
+    expect(finalUrl).toContain(`?id=${targetCameraId}`)
+
+    // Verify the correct camera is selected in the main video player
+    await expect(mainVideoPlayer).toBeVisible({ timeout: TIMEOUTS.VIDEO_LOAD })
+    await expect(mainVideoPlayer).toHaveAttribute('data-camera-id', targetCameraId || '', { timeout: TIMEOUTS.VIDEO_LOAD })
+    console.log(`Camera ${targetCameraId} is correctly selected after login`)
+
+    console.log('URL camera restoration test completed successfully')
   })
 })

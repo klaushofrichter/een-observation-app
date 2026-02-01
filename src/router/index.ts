@@ -28,6 +28,10 @@ const router = createRouter({
       path: '/logout',
       name: 'logout',
       component: Logout
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ]
 })

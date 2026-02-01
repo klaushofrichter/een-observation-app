@@ -33,7 +33,13 @@ onMounted(async () => {
     return
   }
 
-  router.push('/')
+  // Restore camera ID from sessionStorage if it was set before OAuth redirect
+  const storedCameraIds = sessionStorage.getItem('een_url_camera_ids')
+  if (storedCameraIds) {
+    router.push({ path: '/', query: { id: storedCameraIds } })
+  } else {
+    router.push('/')
+  }
 })
 </script>
 
