@@ -135,6 +135,26 @@ test.describe('Authentication', () => {
     await expect(page.getByRole('button', { name: /login with eagle eye/i })).toBeVisible()
   })
 
+  test('should redirect unknown routes to home page', async ({ page }) => {
+    // Navigate to an unknown route
+    await page.goto('/unknown')
+
+    // Should redirect to home, then to login (since unauthenticated)
+    await expect(page).toHaveURL('/login')
+
+    // Should show login button
+    await expect(page.getByRole('button', { name: /login with eagle eye/i })).toBeVisible()
+
+    // Try another unknown nested route
+    await page.goto('/some/nested/unknown/path')
+
+    // Should also redirect to login
+    await expect(page).toHaveURL('/login')
+    await expect(page.getByRole('button', { name: /login with eagle eye/i })).toBeVisible()
+
+    console.log('Unknown route redirect test completed successfully')
+  })
+
   test('should complete OAuth login flow', async ({ page }) => {
     skipIfNoProxy()
     skipIfNoCredentials()
