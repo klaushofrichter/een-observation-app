@@ -4,6 +4,7 @@ import { useAuthStore, getEvent } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
+import { useVideoExport } from '@/composables/useVideoExport'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
 
@@ -83,6 +84,10 @@ const isWithinEventTimeRange = computed(() => {
 const showEventDataModal = ref(false)
 const copiedToClipboard = ref(false)
 
+// Video export state
+const { isActive: exportIsActive, startExport } = useVideoExport()
+const exportError = ref<string | null>(null)
+
 // Handle ESC key to close modal
 function handleEscKey(event: KeyboardEvent) {
   if (event.key === 'Escape') {
@@ -110,6 +115,47 @@ async function copyDataToClipboard() {
     }, 2000)
   } catch (err) {
     console.error('Failed to copy to clipboard:', err)
+  }
+}
+
+// Handle video download - exports the currently playing video clip
+async function handleDownloadClick(e: Event) {
+  e.stopPropagation()
+  exportError.value = null
+
+  // Use the current clip's timestamps from the HLS player
+  const clipStart = hlsPlayer.clipStartTimestamp.value
+  const clipEnd = hlsPlayer.clipEndTimestamp.value
+
+  if (!clipStart || !clipEnd) {
+    exportError.value = 'No video clip loaded'
+    return
+  }
+
+  // Get event timestamps from the playback event object
+  const eventStart = props.playbackEventObject?.startTimestamp as string | undefined
+  const eventEnd = props.playbackEventObject?.endTimestamp as string | undefined
+
+  // Use event timestamps if available, otherwise fall back to clip timestamps
+  const eventStartTimestamp = eventStart || clipStart
+  const eventEndTimestamp = eventEnd || clipEnd
+
+  const result = await startExport({
+    cameraId: props.camera.id,
+    cameraName: props.camera.name,
+    clipStartTimestamp: clipStart,
+    clipEndTimestamp: clipEnd,
+    eventStartTimestamp,
+    eventEndTimestamp,
+    eventType: props.playbackEventType || 'Unknown'
+  })
+
+  if (!result.success && result.error) {
+    exportError.value = result.error
+    // Clear error after 3 seconds
+    setTimeout(() => {
+      exportError.value = null
+    }, 3000)
   }
 }
 
@@ -204,7 +250,7 @@ const eventDuration = computed(() => {
   }
 })
 
-// Helper function to format creatorId (e.g., "een.defaultCloudAnalytics.v1" -> "default Cloud Analytics")
+// Helper function to format creatorId (e.g., "een.defaultCloudAnalytics.v1" -> "Default Cloud Analytics")
 function formatCreatorId(creatorId: string): string {
   // Strip "een." prefix and version suffix like ".v1", ".v2", etc.
   let formatted = creatorId
@@ -213,6 +259,9 @@ function formatCreatorId(creatorId: string): string {
 
   // Add spaces before uppercase letters (camelCase to "Camel Case")
   formatted = formatted.replace(/([a-z])([A-Z])/g, '$1 $2')
+
+  // Capitalize the first letter
+  formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1)
 
   return formatted
 }
@@ -719,16 +768,39 @@ onUnmounted(() => {
           </div>
           <div class="flex items-center justify-between mt-1">
             <p :class="isDark ? 'text-orange-400' : 'text-orange-600'" class="text-sm font-medium">{{ formattedPlaybackTimestamp }}</p>
-            <!-- Info Icon -->
-            <button
-              v-if="playbackEventObject"
-              @click.stop="showEventDataModal = true"
-              class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
-              :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
-              :title="isAlertSource ? 'View alert data' : 'View event data'"
-            >
-              i
-            </button>
+            <div class="flex items-center gap-1.5">
+              <!-- Info Icon -->
+              <button
+                v-if="playbackEventObject"
+                @click.stop="showEventDataModal = true"
+                class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
+                :class="isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white'"
+                :title="isAlertSource ? 'View alert data' : 'View event data'"
+              >
+                i
+              </button>
+              <!-- Download Icon -->
+              <button
+                v-if="playbackEventObject"
+                @click="handleDownloadClick"
+                :disabled="exportIsActive"
+                class="w-5 h-5 rounded-full flex items-center justify-center border transition-colors focus:outline-none"
+                :class="[
+                  exportIsActive
+                    ? (isDark ? 'border-gray-600 text-gray-600 cursor-not-allowed' : 'border-gray-400 text-gray-400 cursor-not-allowed')
+                    : (isDark ? 'border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-gray-900' : 'border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white')
+                ]"
+                :title="exportIsActive ? 'Export in progress' : 'Download event video'"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <!-- Export Error Message -->
+          <div v-if="exportError" class="mt-1">
+            <span class="text-xs text-red-500">{{ exportError }}</span>
           </div>
           <!-- Source (if available in event data) -->
           <div v-if="formattedCreatorId" class="mt-1">

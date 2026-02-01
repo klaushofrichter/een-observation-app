@@ -17,6 +17,19 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Camera Information Panel** - Display camera status, name, ID, and account info
 - **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
 
+### Video Export & Download
+- **Download Button** - Export the currently playing video clip as an MP4 file
+- **Export Progress Modal** - Real-time progress tracking during server-side export
+- **Automatic Clipping** - Clips longer than 10 minutes are automatically truncated:
+  - Calculates the midpoint between event start and end times
+  - Creates a 10-minute window centered on that midpoint (5 min before, 5 min after)
+  - Shifts the window if it extends outside the actual clip boundaries
+  - Shows a warning banner when clipping occurs
+- **Smart Filename** - Downloads use the format `<camera-id> - yyyy-mm-dd hh:mm:ss.mp4`
+  - Timestamp reflects the actual start time of the exported video
+  - Clipped videos include "clipped" suffix: `<camera-id> - yyyy-mm-dd hh:mm:ss clipped.mp4`
+- **Clip Information** - Modal displays duration and file size upon completion
+
 ### Events System
 
 The bottom section of the application contains three panels for event management:
@@ -123,6 +136,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 - **Events:** `listEvents`, `listEventTypes`, `listEventFieldValues`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
 - **Alerts:** `listAlerts`
 - **Notifications:** `listNotifications`
+- **Jobs/Export:** `createJob`, `getJob`, `listFiles`, `downloadFile`
 
 ## Prerequisites
 
@@ -181,11 +195,13 @@ src/
 │   ├── MainVideoPlayer.vue    # HD video with Live SDK + HLS playback
 │   ├── EventTypesPanel.vue    # Event type toggles
 │   ├── HistoricEventsPanel.vue # Historic events with thumbnails
-│   └── LiveEventsPanel.vue    # SSE live events feed
+│   ├── LiveEventsPanel.vue    # SSE live events feed
+│   └── ExportStatusModal.vue  # Video export progress modal
 ├── composables/
 │   ├── useImageCache.ts       # LRU cache for event thumbnails
 │   ├── useHlsPlayer.ts        # HLS.js player management
-│   └── useEventAge.ts         # Event age formatting
+│   ├── useEventAge.ts         # Event age formatting
+│   └── useVideoExport.ts      # Video export with auto-clipping
 ├── views/
 │   ├── Home.vue               # Main application view
 │   ├── Login.vue              # OAuth login page
