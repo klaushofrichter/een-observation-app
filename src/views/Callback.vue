@@ -33,10 +33,17 @@ onMounted(async () => {
     return
   }
 
-  // Restore camera ID from sessionStorage if it was set before OAuth redirect
+  // Restore URL parameters from sessionStorage if they were set before OAuth redirect
   const storedCameraIds = sessionStorage.getItem('een_url_camera_ids')
-  if (storedCameraIds) {
-    router.push({ path: '/', query: { id: storedCameraIds } })
+  const storedSelected = sessionStorage.getItem('een_url_selected')
+  const storedEvents = sessionStorage.getItem('een_url_events')
+
+  if (storedCameraIds || storedSelected || storedEvents) {
+    const query: Record<string, string> = {}
+    if (storedCameraIds) query.id = storedCameraIds
+    if (storedSelected) query.selected = storedSelected
+    if (storedEvents) query.events = storedEvents
+    router.push({ path: '/', query })
   } else {
     router.push('/')
   }
