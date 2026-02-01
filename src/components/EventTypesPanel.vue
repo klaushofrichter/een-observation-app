@@ -2,10 +2,12 @@
 import { ref, watch, computed, onMounted } from 'vue'
 import { listEventFieldValues, listEventTypes } from 'een-api-toolkit'
 import type { Camera, EenError } from 'een-api-toolkit'
+import { buildHashLookup, hashStringToEventTypes } from '@/utils/eventTypeHash'
 
 const props = defineProps<{
   camera: Camera | null
   isDark?: boolean
+  initialEventHashes?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -99,9 +101,23 @@ async function fetchAvailableEventTypes() {
     availableEventTypes.value = result.data.type || []
 
     if (isFirstCameraSelection.value) {
-      // First camera: preselect motion detection if available, otherwise first type
+      // First camera: try URL hashes first, then default behavior
       isFirstCameraSelection.value = false
-      if (availableEventTypes.value.includes(MOTION_DETECTION_EVENT)) {
+
+      if (props.initialEventHashes) {
+        // Restore from URL: decode hashes and filter to available types
+        const hashLookup = buildHashLookup(availableEventTypes.value)
+        const restoredTypes = hashStringToEventTypes(props.initialEventHashes, hashLookup)
+        if (restoredTypes.length > 0) {
+          selectedEventTypes.value = restoredTypes
+        } else if (availableEventTypes.value.includes(MOTION_DETECTION_EVENT)) {
+          selectedEventTypes.value = [MOTION_DETECTION_EVENT]
+        } else if (availableEventTypes.value.length > 0) {
+          selectedEventTypes.value = [availableEventTypes.value[0]]
+        } else {
+          selectedEventTypes.value = []
+        }
+      } else if (availableEventTypes.value.includes(MOTION_DETECTION_EVENT)) {
         selectedEventTypes.value = [MOTION_DETECTION_EVENT]
       } else if (availableEventTypes.value.length > 0) {
         selectedEventTypes.value = [availableEventTypes.value[0]]

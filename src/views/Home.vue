@@ -10,6 +10,7 @@ import EventTypesPanel from '../components/EventTypesPanel.vue'
 import HistoricEventsPanel from '../components/HistoricEventsPanel.vue'
 import LiveEventsPanel from '../components/LiveEventsPanel.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
+import { eventTypesToHashString } from '@/utils/eventTypeHash'
 
 // Inject dark mode state
 const isDark = inject<Ref<boolean>>('isDark', ref(false))
@@ -53,13 +54,22 @@ const initialSelectedCameraId = computed(() => {
   return idList.includes(selected) ? selected : null
 })
 
+// Get initial event type hashes from URL query parameter
+const initialEventHashes = computed(() => {
+  const events = route.query.events
+  return typeof events === 'string' ? events : null
+})
+
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
 // Visible cameras state (for URL sync)
 const visibleCameraIds = ref<string[]>([])
 
-// Update URL with both visible cameras and selected camera
+// Current event hashes for URL (updated when event selection changes)
+const currentEventHashes = ref<string>('')
+
+// Update URL with visible cameras, selected camera, and event types
 function updateUrl() {
   const newQuery: Record<string, string> = {}
 
@@ -71,10 +81,15 @@ function updateUrl() {
     newQuery.selected = selectedCamera.value.id
   }
 
+  if (currentEventHashes.value) {
+    newQuery.events = currentEventHashes.value
+  }
+
   // Only update if different to avoid unnecessary history entries
   const currentId = route.query.id as string | undefined
   const currentSelected = route.query.selected as string | undefined
-  if (currentId !== newQuery.id || currentSelected !== newQuery.selected) {
+  const currentEvents = route.query.events as string | undefined
+  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events) {
     router.replace({ query: newQuery })
   }
 }
@@ -174,6 +189,9 @@ const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
   selectedEventTypes.value = types
+  // Update URL with event type hashes
+  currentEventHashes.value = eventTypesToHashString(types)
+  updateUrl()
 }
 
 // Handle SSE event from LiveEventsPanel - insert into HistoricEventsPanel
@@ -274,6 +292,7 @@ onMounted(async () => {
               <EventTypesPanel
                 :camera="selectedCamera"
                 :is-dark="isDark"
+                :initial-event-hashes="initialEventHashes"
                 @update:selected-types="handleEventTypesUpdate"
               />
             </div>
