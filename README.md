@@ -93,25 +93,60 @@ The bottom section of the application contains three panels for event management
 - **Panel Tooltips** - Hover over panel titles to see descriptions
 - **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
 
-## URL Camera Selection
+## URL Parameters
 
-You can deep-link directly to specific cameras by adding the `id` parameter to the URL:
+The application supports deep-linking with URL parameters to restore camera selection, selected camera, and event type filters.
+
+### Full URL Format
 
 ```
-http://127.0.0.1:3333?id=1005963a,1003e46b
+http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>
 ```
 
-**Multiple cameras (layout mode):**
-- A **"URL-cameras"** option appears at the top of the layout dropdown
-- Only the specified cameras are displayed in the sidebar
-- If a camera ID is invalid or inaccessible, an error card is shown instead
-- The URL parameters persist through the OAuth login flow
-- Accessing the app without the `id` parameter clears any previously stored camera IDs
+**Example:**
+```
+http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj
+```
 
-**Single camera (auto-sync):**
-- When you select a camera, the URL automatically updates to include its ID
-- Share the URL to let others view the same camera directly
-- The camera auto-selects when loading with a single camera ID in the URL
+### Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `id` | Comma-separated list of visible camera IDs | `id=1005963a,100f030c` |
+| `selected` | Currently selected camera ID (must be in `id` list) | `selected=100f030c` |
+| `events` | Comma-separated event type hashes | `events=nkU,6pF,wOj` |
+
+### Camera Selection (`id` and `selected`)
+
+- **`id` parameter** - Defines which cameras are visible in the sidebar
+  - A **"URL-cameras"** option appears at the top of the layout dropdown
+  - If a camera ID is invalid or inaccessible, an error card is shown
+- **`selected` parameter** - Pre-selects a specific camera from the visible list
+  - Must be one of the IDs in the `id` list (validated on load)
+  - If omitted or invalid, the first camera is selected
+- **Auto-sync** - The URL automatically updates when you change camera selection or visibility
+
+### Event Type Filtering (`events`)
+
+Event types are encoded as 3-character hashes to keep URLs short. The hashes use the DJB2 algorithm with base62 encoding.
+
+**Common event type hashes:**
+
+| Hash | Event Type |
+|------|------------|
+| nkU | Motion Detection |
+| 6pF | Person Detection |
+| X33 | Vehicle Detection |
+| 55Y | Animal Detection |
+| wOj | Device Status |
+
+See [docs/event-type-hashes.md](docs/event-type-hashes.md) for the complete list of all 60 event types and their hashes, including the hash algorithm source code.
+
+### URL Persistence
+
+- All URL parameters persist through the OAuth login flow
+- Parameters are stored in sessionStorage during authentication
+- Sharing a URL allows others to see the exact same view (after login)
 
 ## Technology Stack
 
