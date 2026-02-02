@@ -279,8 +279,8 @@ src/
 │   ├── ErrorCameraCard.vue    # Error card for inaccessible cameras
 │   ├── MainVideoPlayer.vue    # HD video with Live SDK + HLS playback
 │   ├── EventTypesPanel.vue    # Event type toggles
-│   ├── HistoricEventsPanel.vue # Historic events with thumbnails
-│   ├── LiveEventsPanel.vue    # SSE live events feed
+│   ├── EventsPanel.vue         # Events panel with thumbnails (historic + live)
+│   ├── AlertsPanel.vue        # Alerts panel with SSE live feed
 │   └── ExportStatusModal.vue  # Video export progress modal
 ├── composables/
 │   ├── useImageCache.ts       # LRU cache for event thumbnails
@@ -313,7 +313,7 @@ The project includes Playwright E2E tests covering:
 - Camera sidebar and selection
 - Video player switching
 - Event type toggles
-- Historic and live events panels
+- Events and alerts panels
 
 Run tests:
 ```bash

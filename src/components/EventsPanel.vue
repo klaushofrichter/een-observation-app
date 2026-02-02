@@ -17,6 +17,7 @@ const props = defineProps<{
   liveFeedButtonLabel?: string
   liveFeedButtonClass?: string
   liveFeedCanToggle?: boolean
+  sseError?: { message: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -561,7 +562,7 @@ watch(
 </script>
 
 <template>
-  <div class="historic-events-panel h-full flex flex-col">
+  <div class="events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'" title="Display of Events matching the selected Event Types on the left">Events</h3>
       <div class="flex items-center gap-2">
@@ -603,6 +604,11 @@ watch(
           title="Auto-refresh every minute"
         />
       </div>
+    </div>
+
+    <!-- SSE Connection Error -->
+    <div v-if="sseError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
+      SSE: {{ sseError.message }}
     </div>
 
     <!-- Loading State -->
@@ -763,7 +769,7 @@ watch(
 </template>
 
 <style scoped>
-.historic-events-panel {
+.events-panel {
   min-width: 0; /* Allow content to shrink */
 }
 
