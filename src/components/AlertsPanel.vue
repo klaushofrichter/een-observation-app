@@ -985,7 +985,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="live-events-panel h-full flex flex-col">
+  <div class="alerts-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'" title="Display of Alerts and associated Notifications without Alert Type Filter">Alerts</h3>
       <div class="flex items-center gap-2">
@@ -1454,7 +1454,7 @@ defineExpose({
 </template>
 
 <style scoped>
-.live-events-panel {
+.alerts-panel {
   min-width: 0; /* Allow content to shrink */
 }
 

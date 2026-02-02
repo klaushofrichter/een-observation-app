@@ -9,8 +9,8 @@ dotenv.config()
  * Tests:
  * 1. Event types panel displays toggles
  * 2. Motion detection is preselected
- * 3. Historic events panel loads events
- * 4. Live events panel shows SSE connection
+ * 3. Events panel loads events
+ * 4. Alerts panel shows SSE connection
  */
 
 const TIMEOUTS = {
@@ -121,15 +121,15 @@ test.describe('Events System', () => {
     await expect(eventTypesPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
     await expect(eventTypesPanel.getByRole('heading', { name: 'Event Types' })).toBeVisible()
 
-    // Events panel (formerly Historic Events)
-    const historicPanel = page.locator('.historic-events-panel')
-    await expect(historicPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
-    await expect(historicPanel.getByRole('heading', { name: 'Events' })).toBeVisible()
+    // Events panel
+    const eventsPanel = page.locator('.events-panel')
+    await expect(eventsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(eventsPanel.getByRole('heading', { name: 'Events' })).toBeVisible()
 
-    // Alerts panel (formerly Live Events)
-    const livePanel = page.locator('.live-events-panel')
-    await expect(livePanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
-    await expect(livePanel.getByRole('heading', { name: 'Alerts' })).toBeVisible()
+    // Alerts panel
+    const alertsPanel = page.locator('.alerts-panel')
+    await expect(alertsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(alertsPanel.getByRole('heading', { name: 'Alerts' })).toBeVisible()
 
     console.log('Events section panels test completed successfully')
   })
@@ -204,21 +204,21 @@ test.describe('Events System', () => {
     await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
 
     // Events panel
-    const historicPanel = page.locator('.historic-events-panel')
-    await expect(historicPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    const eventsPanel = page.locator('.events-panel')
+    await expect(eventsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
 
     // Should show "Events" heading with time range selector
-    await expect(historicPanel.getByRole('heading', { name: 'Events' })).toBeVisible()
-    await expect(historicPanel.locator('select')).toBeVisible()
+    await expect(eventsPanel.getByRole('heading', { name: 'Events' })).toBeVisible()
+    await expect(eventsPanel.locator('select')).toBeVisible()
 
     // Wait for events to load
     await page.waitForTimeout(3000)
 
     // Check for various states - events count, thumbnails, or status messages
-    const eventsCount = await historicPanel.getByText(/\d+ events/).isVisible().catch(() => false)
-    const hasEventThumbnails = await historicPanel.locator('img').count() > 0
-    const hasNoEventsMsg = await historicPanel.getByText(/no events/i).isVisible().catch(() => false)
-    const hasSelectTypeMsg = await historicPanel.getByText(/select.*type/i).isVisible().catch(() => false)
+    const eventsCount = await eventsPanel.getByText(/\d+ events/).isVisible().catch(() => false)
+    const hasEventThumbnails = await eventsPanel.locator('img').count() > 0
+    const hasNoEventsMsg = await eventsPanel.getByText(/no events/i).isVisible().catch(() => false)
+    const hasSelectTypeMsg = await eventsPanel.getByText(/select.*type/i).isVisible().catch(() => false)
 
     console.log(`Events panel - Count shown: ${eventsCount}, Thumbnails: ${hasEventThumbnails}, No events: ${hasNoEventsMsg}, Select type: ${hasSelectTypeMsg}`)
 
@@ -239,8 +239,8 @@ test.describe('Events System', () => {
     const sidebar = page.locator('.camera-sidebar')
     await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
 
-    // Alerts panel (formerly Live Events)
-    const alertsPanel = page.locator('.live-events-panel')
+    // Alerts panel
+    const alertsPanel = page.locator('.alerts-panel')
     await expect(alertsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
 
     // Should show "Alerts" heading

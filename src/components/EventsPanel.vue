@@ -562,7 +562,7 @@ watch(
 </script>
 
 <template>
-  <div class="historic-events-panel h-full flex flex-col">
+  <div class="events-panel h-full flex flex-col">
     <div class="flex items-center justify-between mb-2 flex-shrink-0">
       <h3 class="text-sm font-semibold" :class="isDark ? 'text-gray-200' : 'text-gray-700'" title="Display of Events matching the selected Event Types on the left">Events</h3>
       <div class="flex items-center gap-2">
@@ -769,7 +769,7 @@ watch(
 </template>
 
 <style scoped>
-.historic-events-panel {
+.events-panel {
   min-width: 0; /* Allow content to shrink */
 }
 

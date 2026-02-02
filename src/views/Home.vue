@@ -7,8 +7,8 @@ import { useRouter, useRoute } from 'vue-router'
 import CameraSidebar from '../components/CameraSidebar.vue'
 import MainVideoPlayer from '../components/MainVideoPlayer.vue'
 import EventTypesPanel from '../components/EventTypesPanel.vue'
-import HistoricEventsPanel from '../components/HistoricEventsPanel.vue'
-import LiveEventsPanel from '../components/LiveEventsPanel.vue'
+import EventsPanel from '../components/EventsPanel.vue'
+import AlertsPanel from '../components/AlertsPanel.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
 import { eventTypesToHashString } from '@/utils/eventTypeHash'
 
@@ -346,8 +346,8 @@ function getAlertTypeName(type: string): string {
 const selectedEventTypes = ref<string[]>([])
 
 // References for cross-panel communication
-const historicEventsPanelRef = ref<InstanceType<typeof HistoricEventsPanel> | null>(null)
-const liveEventsPanelRef = ref<InstanceType<typeof LiveEventsPanel> | null>(null)
+const eventsPanelRef = ref<InstanceType<typeof EventsPanel> | null>(null)
+const alertsPanelRef = ref<InstanceType<typeof AlertsPanel> | null>(null)
 
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
@@ -393,13 +393,13 @@ function handleEventFilterChange(enabled: boolean) {
   updateUrl()
 }
 
-// Handle SSE event from LiveEventsPanel - insert into HistoricEventsPanel
+// Handle SSE event from AlertsPanel - insert into EventsPanel
 function handleSseEvent(event: Record<string, unknown>) {
-  historicEventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof historicEventsPanelRef.value.insertEvent>[0])
+  eventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof eventsPanelRef.value.insertEvent>[0])
 }
 
-// Computed events list from HistoricEventsPanel (for MainVideoPlayer to check before API calls)
-const eventsList = computed(() => historicEventsPanelRef.value?.events || [])
+// Computed events list from EventsPanel (for MainVideoPlayer to check before API calls)
+const eventsList = computed(() => eventsPanelRef.value?.events || [])
 
 onMounted(async () => {
   const result = await getCurrentUser()
@@ -501,31 +501,31 @@ watch(isDark, () => {
               />
             </div>
 
-            <!-- Historic Events Panel -->
+            <!-- Events Panel -->
             <div class="flex-1 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
-              <HistoricEventsPanel
-                ref="historicEventsPanelRef"
+              <EventsPanel
+                ref="eventsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
                 :initial-duration="initialEventsDuration"
                 :initial-auto-refresh="initialEventsAutoRefresh"
-                :live-feed-button-label="liveEventsPanelRef?.feedButtonLabel"
-                :live-feed-button-class="liveEventsPanelRef?.feedButtonClass"
-                :live-feed-can-toggle="liveEventsPanelRef?.canConnect || liveEventsPanelRef?.isConnected || liveEventsPanelRef?.isConnecting"
-                :sse-error="liveEventsPanelRef?.connectionError"
+                :live-feed-button-label="alertsPanelRef?.feedButtonLabel"
+                :live-feed-button-class="alertsPanelRef?.feedButtonClass"
+                :live-feed-can-toggle="alertsPanelRef?.canConnect || alertsPanelRef?.isConnected || alertsPanelRef?.isConnecting"
+                :sse-error="alertsPanelRef?.connectionError"
                 @event-clicked="handleEventClick"
-                @toggle-live-feed="liveEventsPanelRef?.toggleLiveFeed()"
+                @toggle-live-feed="alertsPanelRef?.toggleLiveFeed()"
                 @duration-changed="handleEventsDurationChange"
                 @auto-refresh-changed="handleEventsAutoRefreshChange"
               />
             </div>
 
-            <!-- Live SSE Events Panel (Alerts) -->
+            <!-- Alerts Panel -->
             <div class="flex-1 p-3">
-              <LiveEventsPanel
-                ref="liveEventsPanelRef"
+              <AlertsPanel
+                ref="alertsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
