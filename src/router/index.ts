@@ -97,6 +97,55 @@ router.beforeEach((to, _from, next) => {
     } else {
       sessionStorage.removeItem('een_url_events')
     }
+
+    // Store events duration (ed)
+    if (to.query.ed) {
+      sessionStorage.setItem('een_url_ed', to.query.ed as string)
+    } else {
+      sessionStorage.removeItem('een_url_ed')
+    }
+
+    // Store alerts duration (ad)
+    if (to.query.ad) {
+      sessionStorage.setItem('een_url_ad', to.query.ad as string)
+    } else {
+      sessionStorage.removeItem('een_url_ad')
+    }
+
+    // Store events auto-refresh (er)
+    if (to.query.er) {
+      sessionStorage.setItem('een_url_er', to.query.er as string)
+    } else {
+      sessionStorage.removeItem('een_url_er')
+    }
+
+    // Store alerts auto-refresh (ar)
+    if (to.query.ar) {
+      sessionStorage.setItem('een_url_ar', to.query.ar as string)
+    } else {
+      sessionStorage.removeItem('een_url_ar')
+    }
+
+    // Store live events toggle (live)
+    if (to.query.live) {
+      sessionStorage.setItem('een_url_live', to.query.live as string)
+    } else {
+      sessionStorage.removeItem('een_url_live')
+    }
+
+    // Store event filter for alerts (filter)
+    if (to.query.filter) {
+      sessionStorage.setItem('een_url_filter', to.query.filter as string)
+    } else {
+      sessionStorage.removeItem('een_url_filter')
+    }
+
+    // Store dark mode (dark)
+    if (to.query.dark !== undefined) {
+      sessionStorage.setItem('een_url_dark', to.query.dark as string)
+    } else {
+      sessionStorage.removeItem('een_url_dark')
+    }
   }
 
   if (to.meta.requiresAuth && !isAuthenticated()) {

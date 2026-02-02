@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, inject } from 'vue'
+import { ref, onMounted, computed, inject, watch } from 'vue'
 import type { Ref } from 'vue'
 import { getCurrentUser } from 'een-api-toolkit'
 import type { Camera } from 'een-api-toolkit'
@@ -88,6 +88,87 @@ const initialEventHashes = computed(() => {
   return typeof events === 'string' ? events : null
 })
 
+// Duration URL values mapping
+const DURATION_URL_TO_MINUTES: Record<string, number> = {
+  '10m': 10,
+  '1h': 60,
+  '24h': 1440,
+  '1w': 10080
+}
+
+const DURATION_MINUTES_TO_URL: Record<number, string> = {
+  10: '10m',
+  60: '1h',
+  1440: '24h',
+  10080: '1w'
+}
+
+// Parse duration URL value to minutes (returns null if invalid)
+function parseDurationUrl(value: string | null): number | null {
+  if (!value) return null
+  const minutes = DURATION_URL_TO_MINUTES[value]
+  return minutes !== undefined ? minutes : null
+}
+
+// Convert minutes to URL value
+function durationToUrl(minutes: number): string | null {
+  return DURATION_MINUTES_TO_URL[minutes] || null
+}
+
+// Get initial events duration from sessionStorage
+const initialEventsDuration = computed(() => {
+  const stored = sessionStorage.getItem('een_url_ed')
+  if (stored) return parseDurationUrl(stored)
+
+  const ed = route.query.ed
+  return typeof ed === 'string' ? parseDurationUrl(ed) : null
+})
+
+// Get initial alerts duration from sessionStorage
+const initialAlertsDuration = computed(() => {
+  const stored = sessionStorage.getItem('een_url_ad')
+  if (stored) return parseDurationUrl(stored)
+
+  const ad = route.query.ad
+  return typeof ad === 'string' ? parseDurationUrl(ad) : null
+})
+
+// Get initial events auto-refresh from sessionStorage (1 = enabled)
+const initialEventsAutoRefresh = computed(() => {
+  const stored = sessionStorage.getItem('een_url_er')
+  if (stored) return stored === '1'
+
+  const er = route.query.er
+  return er === '1'
+})
+
+// Get initial alerts auto-refresh from sessionStorage (1 = enabled)
+const initialAlertsAutoRefresh = computed(() => {
+  const stored = sessionStorage.getItem('een_url_ar')
+  if (stored) return stored === '1'
+
+  const ar = route.query.ar
+  return ar === '1'
+})
+
+// Get initial live events toggle from sessionStorage (1 = enabled)
+const initialLiveFeed = computed(() => {
+  const stored = sessionStorage.getItem('een_url_live')
+  if (stored) return stored === '1'
+
+  const live = route.query.live
+  return live === '1'
+})
+
+// Get initial event filter for alerts from sessionStorage (1 = enabled)
+const initialEventFilter = computed(() => {
+  const stored = sessionStorage.getItem('een_url_filter')
+  if (stored) return stored === '1'
+
+  const filter = route.query.filter
+  return filter === '1'
+})
+
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
@@ -97,7 +178,19 @@ const visibleCameraIds = ref<string[]>([])
 // Current event hashes for URL (updated when event selection changes)
 const currentEventHashes = ref<string>('')
 
-// Update URL with visible cameras, selected camera, and event types
+// Current duration values for URL (updated when duration selection changes)
+const currentEventsDuration = ref<number>(60) // Default: 1h
+const currentAlertsDuration = ref<number>(60) // Default: 1h
+
+// Current auto-refresh values for URL (updated when checkbox changes)
+const currentEventsAutoRefresh = ref<boolean>(false)
+const currentAlertsAutoRefresh = ref<boolean>(false)
+
+// Current live feed and event filter values for URL
+const currentLiveFeed = ref<boolean>(false)
+const currentEventFilter = ref<boolean>(false)
+
+// Update URL with visible cameras, selected camera, event types, and durations
 function updateUrl() {
   const newQuery: Record<string, string> = {}
 
@@ -113,11 +206,53 @@ function updateUrl() {
     newQuery.events = currentEventHashes.value
   }
 
+  // Add duration parameters (only if not default value of 1h)
+  const edUrl = durationToUrl(currentEventsDuration.value)
+  if (edUrl && edUrl !== '1h') {
+    newQuery.ed = edUrl
+  }
+
+  const adUrl = durationToUrl(currentAlertsDuration.value)
+  if (adUrl && adUrl !== '1h') {
+    newQuery.ad = adUrl
+  }
+
+  // Add auto-refresh parameters (only if enabled)
+  if (currentEventsAutoRefresh.value) {
+    newQuery.er = '1'
+  }
+
+  if (currentAlertsAutoRefresh.value) {
+    newQuery.ar = '1'
+  }
+
+  // Add live feed parameter (only if enabled)
+  if (currentLiveFeed.value) {
+    newQuery.live = '1'
+  }
+
+  // Add event filter parameter (only if enabled)
+  if (currentEventFilter.value) {
+    newQuery.filter = '1'
+  }
+
+  // Add dark mode parameter (only if different from default)
+  if (isDark.value) {
+    newQuery.dark = '1'
+  }
+
   // Only update if different to avoid unnecessary history entries
   const currentId = route.query.id as string | undefined
   const currentSelected = route.query.selected as string | undefined
   const currentEvents = route.query.events as string | undefined
-  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events) {
+  const currentEd = route.query.ed as string | undefined
+  const currentAd = route.query.ad as string | undefined
+  const currentEr = route.query.er as string | undefined
+  const currentAr = route.query.ar as string | undefined
+  const currentLive = route.query.live as string | undefined
+  const currentFilter = route.query.filter as string | undefined
+  const currentDark = route.query.dark as string | undefined
+  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events || currentEd !== newQuery.ed || currentAd !== newQuery.ad || currentEr !== newQuery.er || currentAr !== newQuery.ar || currentLive !== newQuery.live || currentFilter !== newQuery.filter || currentDark !== newQuery.dark) {
     router.replace({ query: newQuery })
   }
 }
@@ -222,6 +357,42 @@ function handleEventTypesUpdate(types: string[]) {
   updateUrl()
 }
 
+// Handle events duration change
+function handleEventsDurationChange(duration: number) {
+  currentEventsDuration.value = duration
+  updateUrl()
+}
+
+// Handle alerts duration change
+function handleAlertsDurationChange(duration: number) {
+  currentAlertsDuration.value = duration
+  updateUrl()
+}
+
+// Handle events auto-refresh change
+function handleEventsAutoRefreshChange(enabled: boolean) {
+  currentEventsAutoRefresh.value = enabled
+  updateUrl()
+}
+
+// Handle alerts auto-refresh change
+function handleAlertsAutoRefreshChange(enabled: boolean) {
+  currentAlertsAutoRefresh.value = enabled
+  updateUrl()
+}
+
+// Handle live feed change
+function handleLiveFeedChange(enabled: boolean) {
+  currentLiveFeed.value = enabled
+  updateUrl()
+}
+
+// Handle event filter change
+function handleEventFilterChange(enabled: boolean) {
+  currentEventFilter.value = enabled
+  updateUrl()
+}
+
 // Handle SSE event from LiveEventsPanel - insert into HistoricEventsPanel
 function handleSseEvent(event: Record<string, unknown>) {
   historicEventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof historicEventsPanelRef.value.insertEvent>[0])
@@ -244,6 +415,11 @@ onMounted(async () => {
   }
 
   loading.value = false
+})
+
+// Watch for dark mode changes and update URL
+watch(isDark, () => {
+  updateUrl()
 })
 </script>
 
@@ -333,11 +509,15 @@ onMounted(async () => {
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-event-id="playbackEventId"
+                :initial-duration="initialEventsDuration"
+                :initial-auto-refresh="initialEventsAutoRefresh"
                 :live-feed-button-label="liveEventsPanelRef?.feedButtonLabel"
                 :live-feed-button-class="liveEventsPanelRef?.feedButtonClass"
                 :live-feed-can-toggle="liveEventsPanelRef?.canConnect || liveEventsPanelRef?.isConnected || liveEventsPanelRef?.isConnecting"
                 @event-clicked="handleEventClick"
                 @toggle-live-feed="liveEventsPanelRef?.toggleLiveFeed()"
+                @duration-changed="handleEventsDurationChange"
+                @auto-refresh-changed="handleEventsAutoRefreshChange"
               />
             </div>
 
@@ -349,8 +529,16 @@ onMounted(async () => {
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
                 :active-alert-id="activeAlertId"
+                :initial-duration="initialAlertsDuration"
+                :initial-auto-refresh="initialAlertsAutoRefresh"
+                :initial-live-feed="initialLiveFeed"
+                :initial-event-filter="initialEventFilter"
                 @alert-clicked="handleAlertClick"
                 @sse-event="handleSseEvent"
+                @duration-changed="handleAlertsDurationChange"
+                @auto-refresh-changed="handleAlertsAutoRefreshChange"
+                @live-feed-changed="handleLiveFeedChange"
+                @event-filter-changed="handleEventFilterChange"
               />
             </div>
           </div>
