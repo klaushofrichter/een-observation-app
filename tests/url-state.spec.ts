@@ -194,7 +194,7 @@ test.describe('URL State Persistence', () => {
     }
 
     // Wait for URL to update with events parameter
-    await page.waitForTimeout(500)
+    await page.waitForURL(/events=/, { timeout: TIMEOUTS.UI_UPDATE })
 
     // Step 5: Capture the URL with all parameters
     const capturedUrl = page.url()
