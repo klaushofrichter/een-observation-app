@@ -93,25 +93,110 @@ The bottom section of the application contains three panels for event management
 - **Panel Tooltips** - Hover over panel titles to see descriptions
 - **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
 
-## URL Camera Selection
+## URL Parameters
 
-You can deep-link directly to specific cameras by adding the `id` parameter to the URL:
+The application supports deep-linking with URL parameters to restore camera selection, selected camera, event type filters, time range durations, auto-refresh settings, live events toggle, event filter, and dark mode.
+
+### Full URL Format
 
 ```
-http://127.0.0.1:3333?id=1005963a,1003e46b
+http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>&ed=<duration>&ad=<duration>&er=1&ar=1&live=1&filter=1&dark=1
 ```
 
-**Multiple cameras (layout mode):**
-- A **"URL-cameras"** option appears at the top of the layout dropdown
-- Only the specified cameras are displayed in the sidebar
-- If a camera ID is invalid or inaccessible, an error card is shown instead
-- The URL parameters persist through the OAuth login flow
-- Accessing the app without the `id` parameter clears any previously stored camera IDs
+**Example:**
+```
+http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj&ed=24h&ad=1w&er=1&live=1&dark=1
+```
 
-**Single camera (auto-sync):**
-- When you select a camera, the URL automatically updates to include its ID
-- Share the URL to let others view the same camera directly
-- The camera auto-selects when loading with a single camera ID in the URL
+### Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `id` | Comma-separated list of visible camera IDs | `id=1005963a,100f030c` |
+| `selected` | Currently selected camera ID (must be in `id` list) | `selected=100f030c` |
+| `events` | Comma-separated event type hashes | `events=nkU,6pF,wOj` |
+| `ed` | Events panel time range duration | `ed=24h` |
+| `ad` | Alerts panel time range duration | `ad=1w` |
+| `er` | Events panel auto-refresh enabled (`1` = on) | `er=1` |
+| `ar` | Alerts panel auto-refresh enabled (`1` = on) | `ar=1` |
+| `live` | Live events SSE feed enabled (`1` = on) | `live=1` |
+| `filter` | Event type filter for alerts enabled (`1` = on) | `filter=1` |
+| `dark` | Dark mode (`1` = on, `0` = off) | `dark=1` |
+
+### Camera Selection (`id` and `selected`)
+
+- **`id` parameter** - Defines which cameras are visible in the sidebar
+  - A **"URL-cameras"** option appears at the top of the layout dropdown
+  - If a camera ID is invalid or inaccessible, an error card is shown
+- **`selected` parameter** - Pre-selects a specific camera from the visible list
+  - Must be one of the IDs in the `id` list (validated on load)
+  - If omitted or invalid, the first camera is selected
+- **Auto-sync** - The URL automatically updates when you change camera selection or visibility
+
+### Event Type Filtering (`events`)
+
+Event types are encoded as 3-character hashes to keep URLs short. The hashes use the DJB2 algorithm with base62 encoding.
+
+**Common event type hashes:**
+
+| Hash | Event Type |
+|------|------------|
+| nkU | Motion Detection |
+| 6pF | Person Detection |
+| X33 | Vehicle Detection |
+| 55Y | Animal Detection |
+| wOj | Device Status |
+
+See [docs/event-type-hashes.md](docs/event-type-hashes.md) for the complete list of all 60 event types and their hashes, including the hash algorithm source code.
+
+### Time Range Duration (`ed` and `ad`)
+
+Controls the time range for the Events and Alerts panels. Valid values:
+
+| Value | Duration |
+|-------|----------|
+| `10m` | Last 10 minutes |
+| `1h` | Last 1 hour (default) |
+| `24h` | Last 24 hours |
+| `1w` | Last week |
+
+Invalid values are ignored and the default (1h) is used. The duration is only included in the URL when not the default value.
+
+### Auto-Refresh (`er` and `ar`)
+
+Controls whether auto-refresh is enabled for the Events and Alerts panels:
+- `er=1` - Enable events auto-refresh
+- `ar=1` - Enable alerts auto-refresh
+
+When enabled, the respective panel refreshes every minute. The parameter is only included in the URL when auto-refresh is enabled.
+
+### Live Events Toggle (`live`)
+
+Controls whether the live events SSE (Server-Sent Events) feed is enabled:
+- `live=1` - Enable live events feed
+
+When enabled, new events are pushed to the Events panel in real-time via SSE. The parameter is only included in the URL when the live feed is enabled.
+
+### Event Filter for Alerts (`filter`)
+
+Controls whether alerts are filtered by the selected event types:
+- `filter=1` - Enable event type filter for alerts
+
+When enabled, only alerts matching the selected event types are shown. The parameter is only included in the URL when the filter is enabled.
+
+### Dark Mode (`dark`)
+
+Controls the application theme:
+- `dark=1` - Enable dark mode
+- `dark=0` - Enable light mode (explicit)
+
+When `dark=1` is in the URL, dark mode is enabled regardless of the user's previous preference. The parameter is only included in the URL when dark mode is enabled.
+
+### URL Persistence
+
+- All URL parameters persist through the OAuth login flow
+- Parameters are stored in sessionStorage during authentication
+- Sharing a URL allows others to see the exact same view (after login)
 
 ## Technology Stack
 
@@ -143,7 +228,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 - Node.js 18+
 - An Eagle Eye Networks account
 - OAuth client credentials (client ID)
-- An OAuth proxy URL (see [een-api-toolkit documentation](https://www.npmjs.com/package/een-api-toolkit))
+- An OAuth proxy URL (see [een-api-toolkit documentation](https://www.npmjs.com/package/een-api-toolkit) or [een-oauth-proxy](https://github.com/klaushofrichter/een-oauth-proxy) for an implementation)
 
 ## Setup
 

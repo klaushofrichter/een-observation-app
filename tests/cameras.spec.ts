@@ -307,8 +307,8 @@ test.describe('Camera Selection and Video', () => {
     const urlWithCamera = page.url()
     console.log(`URL with camera ID: ${urlWithCamera}`)
 
-    // Verify URL contains the camera ID
-    expect(urlWithCamera).toContain(`?id=${targetCameraId}`)
+    // Verify URL contains the selected camera ID (in the 'selected' parameter)
+    expect(urlWithCamera).toContain(`selected=${targetCameraId}`)
 
     // Verify main video player shows the selected camera
     const mainVideoPlayer = page.locator('.main-video-player')
@@ -337,8 +337,8 @@ test.describe('Camera Selection and Video', () => {
     const finalUrl = page.url()
     console.log(`Final URL after login: ${finalUrl}`)
 
-    // Verify the camera ID is preserved in the URL
-    expect(finalUrl).toContain(`?id=${targetCameraId}`)
+    // Verify the selected camera ID is preserved in the URL
+    expect(finalUrl).toContain(`selected=${targetCameraId}`)
 
     // Verify the correct camera is selected in the main video player
     await expect(mainVideoPlayer).toBeVisible({ timeout: TIMEOUTS.VIDEO_LOAD })

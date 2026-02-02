@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import {
   createEventSubscription,
   connectToEventSubscription,
   deleteEventSubscription,
   listAlerts,
   listNotifications,
-  listEventAlertConditionRules
+  listEventAlertConditionRules,
+  listAlertActions
 } from 'een-api-toolkit'
-import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert, Notification, EventAlertConditionRule } from 'een-api-toolkit'
+import type { Camera, EenError, SSEEvent, SSEConnection, SSEConnectionStatus, Alert, Notification, EventAlertConditionRule, AutomationAlertAction } from 'een-api-toolkit'
 
 // Extended alert type with optional notification and rule data
 interface AlertWithNotification extends Alert {
-  notification?: Notification
+  notifications?: Notification[]
   eventAlertConditionRule?: EventAlertConditionRule
 }
 import { useImageCache } from '@/composables/useImageCache'
@@ -23,11 +24,19 @@ const props = defineProps<{
   selectedTypes: string[]
   isDark?: boolean
   activeAlertId?: string | null
+  initialDuration?: number | null
+  initialAutoRefresh?: boolean
+  initialLiveFeed?: boolean
+  initialEventFilter?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'sse-event', event: Record<string, unknown>): void
   (e: 'alert-clicked', alert: { alertId: string; alertObject: Record<string, unknown> }): void
+  (e: 'duration-changed', duration: number): void
+  (e: 'auto-refresh-changed', enabled: boolean): void
+  (e: 'live-feed-changed', enabled: boolean): void
+  (e: 'event-filter-changed', enabled: boolean): void
 }>()
 
 // Use shared image cache
@@ -41,7 +50,7 @@ const subscriptionId = ref<string | null>(null)
 const sseConnection = ref<SSEConnection | null>(null)
 const connectionStatus = ref<SSEConnectionStatus>('disconnected')
 const connectionError = ref<EenError | null>(null)
-const liveFeedEnabled = ref(false) // User's desired state - always reconnect when enabled
+const liveFeedEnabled = ref(props.initialLiveFeed ?? false) // User's desired state - always reconnect when enabled
 
 // Alerts State
 const alerts = ref<AlertWithNotification[]>([])
@@ -63,14 +72,23 @@ const showRuleModal = ref(false)
 const selectedRule = ref<EventAlertConditionRule | null>(null)
 const ruleCopied = ref(false)
 
+// Action modal state
+const showActionModal = ref(false)
+const selectedAction = ref<AutomationAlertAction | null>(null)
+const selectedActionExecution = ref<Record<string, unknown> | null>(null) // Execution data from alert
+const actionCopied = ref(false)
+
 // Store for all event alert condition rules
 const eventAlertConditionRules = ref<Map<string, EventAlertConditionRule>>(new Map())
 
-// Event type filter state for alerts
-const eventFilterEnabled = ref(false)
+// Store for all alert actions (definitions)
+const alertActionsMap = ref<Map<string, AutomationAlertAction>>(new Map())
 
-// Auto-refresh state for alerts
-const autoRefresh = ref(false)
+// Event type filter state for alerts (initialize from prop)
+const eventFilterEnabled = ref(props.initialEventFilter ?? false)
+
+// Auto-refresh state for alerts (initialize from prop)
+const autoRefresh = ref(props.initialAutoRefresh ?? false)
 const refreshCountdown = ref(0) // seconds until next refresh
 const AUTO_REFRESH_INTERVAL = 60 // 1 minute in seconds
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -82,7 +100,16 @@ const timeRangeOptions = [
   { label: 'Last 24h', value: 60 * 24 },
   { label: 'Last week', value: 60 * 24 * 7 }
 ]
-const selectedTimeRange = ref(60) // Default: 1 hour
+// Valid duration values for validation
+const validDurations = new Set([10, 60, 1440, 10080])
+// Initialize from prop if valid, otherwise default to 1 hour
+const getInitialDuration = () => {
+  if (props.initialDuration && validDurations.has(props.initialDuration)) {
+    return props.initialDuration
+  }
+  return 60
+}
+const selectedTimeRange = ref(getInitialDuration())
 
 // Reconnection timer (SSE subscriptions expire after 15 minutes)
 const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes (before 15 min expiry)
@@ -154,10 +181,12 @@ function toggleLiveFeed() {
   if (isConnected.value || isConnecting.value) {
     // Turn off - disconnect and disable
     liveFeedEnabled.value = false
+    emit('live-feed-changed', false)
     disconnect()
   } else {
     // Turn on - enable and connect
     liveFeedEnabled.value = true
+    emit('live-feed-changed', true)
     if (canConnect.value) {
       connect()
     }
@@ -167,6 +196,7 @@ function toggleLiveFeed() {
 // Toggle event type filter for alerts
 function toggleEventFilter() {
   eventFilterEnabled.value = !eventFilterEnabled.value
+  emit('event-filter-changed', eventFilterEnabled.value)
   // Refresh alerts with new filter setting
   fetchAlerts()
 }
@@ -468,11 +498,13 @@ function getAlertTypeName(type: string): string {
   return type
 }
 
-// Handle alert click - emit alert data for display
-function handleAlertClick(alert: Alert) {
+// Handle alert click - emit alert data for display (exclude notifications as they're accessible via icons)
+function handleAlertClick(alert: AlertWithNotification) {
+  // Create a copy without the notifications property (they're accessible via their own icons)
+  const { notifications, eventAlertConditionRule, ...alertData } = alert
   emit('alert-clicked', {
     alertId: alert.id,
-    alertObject: alert as unknown as Record<string, unknown>
+    alertObject: alertData as unknown as Record<string, unknown>
   })
 }
 
@@ -523,22 +555,21 @@ async function fetchAndMergeNotifications() {
     return
   }
 
-  // Create a map of alertId -> notification
-  const notificationsByAlertId = new Map<string, Notification>()
+  // Create a map of alertId -> notifications array (can have multiple per alert)
+  const notificationsByAlertId = new Map<string, Notification[]>()
   for (const notification of result.data.results) {
     if (notification.alertId) {
-      // Only keep the first (most recent) notification per alert
-      if (!notificationsByAlertId.has(notification.alertId)) {
-        notificationsByAlertId.set(notification.alertId, notification)
-      }
+      const existing = notificationsByAlertId.get(notification.alertId) || []
+      existing.push(notification)
+      notificationsByAlertId.set(notification.alertId, existing)
     }
   }
 
   // Merge notifications into alerts
   for (const alert of alerts.value) {
-    const notification = notificationsByAlertId.get(alert.id)
-    if (notification) {
-      alert.notification = notification
+    const notifications = notificationsByAlertId.get(alert.id)
+    if (notifications && notifications.length > 0) {
+      alert.notifications = notifications
     }
   }
 }
@@ -547,6 +578,11 @@ async function fetchAndMergeNotifications() {
 function getServiceRuleIdFromNotification(notification: Notification): string | undefined {
   // serviceRuleId exists in the API response but may not be typed
   return (notification as unknown as { serviceRuleId?: string }).serviceRuleId
+}
+
+// Helper to get serviceRuleId directly from alert (may not be typed)
+function getServiceRuleIdFromAlert(alert: Alert): string | undefined {
+  return (alert as unknown as { serviceRuleId?: string }).serviceRuleId
 }
 
 // Get notification actions for display (returns array of action types)
@@ -576,23 +612,46 @@ function getNotificationActionTooltip(action: string, notification?: Notificatio
   return baseTooltip
 }
 
-// Fetch event alert condition rules and match to notifications
-async function fetchAndMatchEventAlertConditionRules() {
-  // Check if any alerts have notifications with serviceRuleId
-  const alertsWithNotificationRuleId = alerts.value.filter(alert => {
-    if (!alert.notification) return false
-    return getServiceRuleIdFromNotification(alert.notification)
-  })
-  if (alertsWithNotificationRuleId.length === 0) return
+// Get actions from alert (e.g., zapier, webhook) - actions is an object with UUIDs as keys
+// Returns array with id (the key) and execution data
+function getAlertActions(alert: AlertWithNotification): Array<{ id: string; type: string; name?: string; execution: Record<string, unknown> }> {
+  // Actions can be on the alert itself (from the raw alert data)
+  const alertData = alert as unknown as { actions?: Record<string, { type: string; name?: string }> }
+  const actions = alertData.actions
 
-  // Get unique serviceRuleIds that we need to fetch
+  if (!actions || typeof actions !== 'object') return []
+
+  // Convert object entries to array with id included
+  return Object.entries(actions).map(([id, execution]) => ({
+    id,
+    type: execution.type,
+    name: execution.name,
+    execution: execution as Record<string, unknown>
+  }))
+}
+
+// Fetch event alert condition rules and match to alerts
+async function fetchAndMatchEventAlertConditionRules() {
+  // Get unique serviceRuleIds from alerts (directly or from notifications)
   const uniqueRuleIds = new Set<string>()
-  for (const alert of alertsWithNotificationRuleId) {
-    const ruleId = getServiceRuleIdFromNotification(alert.notification!)
-    if (ruleId) {
-      uniqueRuleIds.add(ruleId)
+  for (const alert of alerts.value) {
+    // Check alert's own serviceRuleId
+    const alertRuleId = getServiceRuleIdFromAlert(alert)
+    if (alertRuleId) {
+      uniqueRuleIds.add(alertRuleId)
+    }
+    // Also check notifications' serviceRuleIds
+    if (alert.notifications) {
+      for (const notification of alert.notifications) {
+        const notificationRuleId = getServiceRuleIdFromNotification(notification)
+        if (notificationRuleId) {
+          uniqueRuleIds.add(notificationRuleId)
+        }
+      }
     }
   }
+
+  if (uniqueRuleIds.size === 0) return
 
   // Only fetch rules we don't already have
   const ruleIdsToFetch = Array.from(uniqueRuleIds).filter(id => !eventAlertConditionRules.value.has(id))
@@ -611,18 +670,58 @@ async function fetchAndMatchEventAlertConditionRules() {
     }
   }
 
-  // Match rules to alerts that have notifications with serviceRuleId
+  // Match rules to alerts (check alert's serviceRuleId first, then notifications')
   for (const alert of alerts.value) {
-    if (alert.notification) {
-      const ruleId = getServiceRuleIdFromNotification(alert.notification)
-      if (ruleId) {
-        const rule = eventAlertConditionRules.value.get(ruleId)
-        if (rule) {
-          alert.eventAlertConditionRule = rule
+    // Try alert's own serviceRuleId first
+    const alertRuleId = getServiceRuleIdFromAlert(alert)
+    if (alertRuleId) {
+      const rule = eventAlertConditionRules.value.get(alertRuleId)
+      if (rule) {
+        alert.eventAlertConditionRule = rule
+        continue
+      }
+    }
+    // Fall back to notifications' serviceRuleId
+    if (alert.notifications) {
+      for (const notification of alert.notifications) {
+        const notificationRuleId = getServiceRuleIdFromNotification(notification)
+        if (notificationRuleId) {
+          const rule = eventAlertConditionRules.value.get(notificationRuleId)
+          if (rule) {
+            alert.eventAlertConditionRule = rule
+            break
+          }
         }
       }
     }
   }
+}
+
+// Fetch all alert actions (definitions) and store in map
+async function fetchAlertActions() {
+  // Only fetch if we don't have any yet
+  if (alertActionsMap.value.size > 0) return
+
+  let pageToken: string | undefined = undefined
+
+  do {
+    const result = await listAlertActions({
+      pageSize: 100,
+      ...(pageToken ? { pageToken } : {})
+    })
+
+    if (result.error) {
+      // Silently fail - alert actions are supplementary
+      return
+    }
+
+    // Add each action to the Map by its id
+    for (const action of result.data.results) {
+      alertActionsMap.value.set(action.id, action)
+    }
+
+    pageToken = result.data.nextPageToken
+  } while (pageToken)
 }
 
 // Show notification modal
@@ -637,6 +736,31 @@ function showRuleDetails(rule: EventAlertConditionRule, event: MouseEvent) {
   event.stopPropagation() // Prevent alert click
   selectedRule.value = rule
   showRuleModal.value = true
+}
+
+// Show action modal - looks up action definition by ID
+function showActionDetails(actionId: string, execution: Record<string, unknown>, event: MouseEvent) {
+  event.stopPropagation() // Prevent alert click
+
+  // Look up the action definition
+  const actionDefinition = alertActionsMap.value.get(actionId)
+  selectedAction.value = actionDefinition || null
+  selectedActionExecution.value = execution
+  showActionModal.value = true
+}
+
+// Copy action data to clipboard
+async function copyActionToClipboard() {
+  if (!selectedAction.value) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(selectedAction.value, null, 2))
+    actionCopied.value = true
+    setTimeout(() => {
+      actionCopied.value = false
+    }, 2000)
+  } catch {
+    // Clipboard access denied or not supported
+  }
 }
 
 // Copy rule data to clipboard
@@ -672,6 +796,7 @@ function handleModalEscKey(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     showNotificationModal.value = false
     showRuleModal.value = false
+    showActionModal.value = false
   }
 }
 
@@ -692,6 +817,17 @@ watch(showRuleModal, (isOpen) => {
   } else {
     document.removeEventListener('keydown', handleModalEscKey)
     selectedRule.value = null
+  }
+})
+
+// Watch action modal state to add/remove ESC key listener
+watch(showActionModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleModalEscKey)
+  } else {
+    document.removeEventListener('keydown', handleModalEscKey)
+    selectedAction.value = null
+    selectedActionExecution.value = null
   }
 })
 
@@ -747,6 +883,9 @@ async function fetchAlerts(append = false) {
 
     // Fetch event alert condition rules and match to notifications
     await fetchAndMatchEventAlertConditionRules()
+
+    // Fetch alert action definitions
+    await fetchAlertActions()
   }
 
   alertsLoading.value = false
@@ -789,6 +928,7 @@ watch(autoRefresh, (enabled) => {
   } else {
     stopRefreshTimer()
   }
+  emit('auto-refresh-changed', enabled)
 })
 
 // Watch for camera changes - fetch alerts
@@ -800,11 +940,12 @@ watch(
   }
 )
 
-// Watch for time range changes - fetch new alerts
+// Watch for time range changes - fetch new alerts and emit change
 watch(
   selectedTimeRange,
-  () => {
+  (newValue) => {
     fetchAlerts()
+    emit('duration-changed', newValue)
   }
 )
 
@@ -812,6 +953,17 @@ watch(
 if (props.camera) {
   fetchAlerts()
 }
+
+// Start auto-refresh timer and live feed on mount if enabled
+onMounted(() => {
+  if (autoRefresh.value) {
+    startRefreshTimer()
+  }
+  // Start live feed connection if enabled and we have camera and types
+  if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
+    connect()
+  }
+})
 
 // Cleanup on unmount
 onUnmounted(async () => {
@@ -954,40 +1106,7 @@ defineExpose({
             <span class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
               {{ alert.alertName || getAlertTypeName(alert.alertType) }}
             </span>
-            <!-- Notification Icons (if notification exists for this alert) -->
-            <template v-if="alert.notification">
-              <button
-                v-for="action in getNotificationActions(alert.notification)"
-                :key="action"
-                @click="showNotificationDetails(alert.notification!, $event)"
-                class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-                :title="getNotificationActionTooltip(action, alert.notification)"
-              >
-                <!-- Email icon -->
-                <svg v-if="action === 'email'" class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <!-- SMS icon (chat bubble) -->
-                <svg v-else-if="action === 'sms'" class="w-3.5 h-3.5" :class="isDark ? 'text-green-400' : 'text-green-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-                <!-- Push notification icon (bell) -->
-                <svg v-else-if="action === 'push'" class="w-3.5 h-3.5" :class="isDark ? 'text-yellow-400' : 'text-yellow-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <!-- GUI icon (desktop/monitor) -->
-                <svg v-else-if="action === 'gui'" class="w-3.5 h-3.5" :class="isDark ? 'text-cyan-400' : 'text-cyan-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <!-- Unknown/default icon (drum) -->
-                <svg v-else class="w-3.5 h-3.5" :class="isDark ? 'text-gray-400' : 'text-gray-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <ellipse cx="12" cy="8" rx="8" ry="4" stroke-width="2" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8v8c0 2.21 3.58 4 8 4s8-1.79 8-4V8" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c0 2.21 3.58 4 8 4s8-1.79 8-4" />
-                </svg>
-              </button>
-            </template>
-            <!-- Event Alert Condition Rule Icon (if rule exists for this alert's notification) -->
+            <!-- 1. Event Alert Condition Rule Icon (first, as every alert has this) -->
             <button
               v-if="alert.eventAlertConditionRule"
               @click="showRuleDetails(alert.eventAlertConditionRule!, $event)"
@@ -998,6 +1117,79 @@ defineExpose({
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
               </svg>
             </button>
+            <!-- 2. Action Icons (zapier, webhook, etc.) -->
+            <template v-if="getAlertActions(alert).length > 0">
+              <span class="text-xs" :class="isDark ? 'text-gray-500' : 'text-gray-400'">-</span>
+              <template v-for="actionItem in getAlertActions(alert)" :key="actionItem.id">
+                <!-- Zapier icon -->
+                <button
+                  v-if="actionItem.type === 'zapier'"
+                  class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                  :title="actionItem.name || 'Zapier action'"
+                  @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
+                >
+                  <svg class="w-3.5 h-3.5" :class="isDark ? 'text-orange-400' : 'text-orange-500'" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 14.025h-3.19v3.19c0 .433-.351.785-.785.785h-3.838a.786.786 0 01-.785-.785v-3.19h-3.19a.786.786 0 01-.785-.785v-2.48c0-.434.351-.785.785-.785h3.19v-3.19c0-.434.351-.785.785-.785h3.838c.434 0 .785.351.785.785v3.19h3.19c.434 0 .785.351.785.785v2.48a.786.786 0 01-.785.785z"/>
+                  </svg>
+                </button>
+                <!-- Webhook icon (hook) -->
+                <button
+                  v-else-if="actionItem.type === 'webhook'"
+                  class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                  :title="actionItem.name || 'Webhook action'"
+                  @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
+                >
+                  <svg class="w-3.5 h-3.5" :class="isDark ? 'text-indigo-400' : 'text-indigo-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </button>
+                <!-- Unknown action type -->
+                <button
+                  v-else
+                  class="text-xs flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                  :class="isDark ? 'text-gray-400' : 'text-gray-500'"
+                  :title="actionItem.name || actionItem.type"
+                  @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
+                >
+                  {{ actionItem.type }}
+                </button>
+              </template>
+            </template>
+            <!-- 3. Notification Icons (for all notifications associated with this alert) -->
+            <template v-if="alert.notifications && alert.notifications.length > 0">
+              <template v-for="notification in alert.notifications" :key="notification.id">
+                <button
+                  v-for="action in getNotificationActions(notification)"
+                  :key="`${notification.id}-${action}`"
+                  @click="showNotificationDetails(notification, $event)"
+                  class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                  :title="getNotificationActionTooltip(action, notification)"
+                >
+                  <!-- Email icon -->
+                  <svg v-if="action === 'email'" class="w-3.5 h-3.5" :class="isDark ? 'text-blue-400' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <!-- SMS icon (chat bubble) -->
+                  <svg v-else-if="action === 'sms'" class="w-3.5 h-3.5" :class="isDark ? 'text-green-400' : 'text-green-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  <!-- Push notification icon (bell) -->
+                  <svg v-else-if="action === 'push'" class="w-3.5 h-3.5" :class="isDark ? 'text-yellow-400' : 'text-yellow-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <!-- GUI icon (desktop/monitor) -->
+                  <svg v-else-if="action === 'gui'" class="w-3.5 h-3.5" :class="isDark ? 'text-cyan-400' : 'text-cyan-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <!-- Unknown/default icon (drum) -->
+                  <svg v-else class="w-3.5 h-3.5" :class="isDark ? 'text-gray-400' : 'text-gray-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <ellipse cx="12" cy="8" rx="8" ry="4" stroke-width="2" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8v8c0 2.21 3.58 4 8 4s8-1.79 8-4V8" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c0 2.21 3.58 4 8 4s8-1.79 8-4" />
+                  </svg>
+                </button>
+              </template>
+            </template>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
             <span>{{ formatTimestamp(alert.timestamp) }}</span>
@@ -1179,6 +1371,86 @@ defineExpose({
               class="text-xs font-mono p-4 rounded overflow-auto"
               :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
             >{{ JSON.stringify(selectedRule, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Action Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showActionModal && (selectedAction || selectedActionExecution)"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        @click.self="showActionModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showActionModal = false" />
+
+        <!-- Modal -->
+        <div
+          class="relative rounded-lg shadow-xl max-h-[80vh] flex flex-col"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+          style="width: 80%"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">
+              Action: {{ selectedAction?.name || (selectedActionExecution as Record<string, unknown>)?.name || 'Unknown' }}
+            </h3>
+            <div class="flex items-center gap-2">
+              <!-- Copy Button -->
+              <button
+                @click="copyActionToClipboard"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  actionCopied ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                ]"
+                :title="actionCopied ? 'Copied!' : 'Copy to clipboard'"
+              >
+                <!-- Checkmark icon when copied -->
+                <svg v-if="actionCopied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <!-- Copy icon -->
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <!-- Close Button -->
+              <button
+                @click="showActionModal = false"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'
+                ]"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 overflow-auto flex-1">
+            <!-- Show action definition if available -->
+            <template v-if="selectedAction">
+              <h4 class="text-sm font-semibold mb-2" :class="isDark ? 'text-gray-300' : 'text-gray-700'">Action Definition</h4>
+              <pre
+                class="text-xs font-mono p-4 rounded overflow-auto"
+                :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+              >{{ JSON.stringify(selectedAction, null, 2) }}</pre>
+            </template>
+            <!-- Fallback to execution data if no definition found -->
+            <template v-else-if="selectedActionExecution">
+              <h4 class="text-sm font-semibold mb-2" :class="isDark ? 'text-yellow-400' : 'text-yellow-600'">Action Execution Data (definition not found)</h4>
+              <pre
+                class="text-xs font-mono p-4 rounded overflow-auto"
+                :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+              >{{ JSON.stringify(selectedActionExecution, null, 2) }}</pre>
+            </template>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
+import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { listEvents, listEventTypes } from 'een-api-toolkit'
 import type { Camera, Event, EenError } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
@@ -12,6 +12,8 @@ const props = defineProps<{
   selectedTypes: string[]
   isDark?: boolean
   activeEventId?: string | null
+  initialDuration?: number | null
+  initialAutoRefresh?: boolean
   liveFeedButtonLabel?: string
   liveFeedButtonClass?: string
   liveFeedCanToggle?: boolean
@@ -20,6 +22,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
   (e: 'toggle-live-feed'): void
+  (e: 'duration-changed', duration: number): void
+  (e: 'auto-refresh-changed', enabled: boolean): void
 }>()
 
 // Use shared image cache
@@ -43,8 +47,8 @@ const isAtTop = ref(true)
 const boundingBoxesMap = ref<Map<string, BoundingBox[]>>(new Map())
 const sseInsertedIds = ref<Set<string>>(new Set()) // Track events inserted via SSE (shown with blue background)
 
-// Auto-refresh state
-const autoRefresh = ref(false)
+// Auto-refresh state (initialize from prop)
+const autoRefresh = ref(props.initialAutoRefresh ?? false)
 const refreshCountdown = ref(0) // seconds until next refresh
 const AUTO_REFRESH_INTERVAL = 60 // 1 minute in seconds
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -59,7 +63,16 @@ const timeRangeOptions = [
   { label: 'Last 24h', value: 60 * 24 },
   { label: 'Last week', value: 60 * 24 * 7 }
 ]
-const selectedTimeRange = ref(60) // Default: 1 hour
+// Valid duration values for validation
+const validDurations = new Set([10, 60, 1440, 10080])
+// Initialize from prop if valid, otherwise default to 1 hour
+const getInitialDuration = () => {
+  if (props.initialDuration && validDurations.has(props.initialDuration)) {
+    return props.initialDuration
+  }
+  return 60
+}
+const selectedTimeRange = ref(getInitialDuration())
 
 // Computed
 const hasMoreEvents = computed(() => !!nextPageToken.value)
@@ -499,6 +512,14 @@ watch(autoRefresh, (enabled) => {
   } else {
     stopRefreshTimer()
   }
+  emit('auto-refresh-changed', enabled)
+})
+
+// Start auto-refresh timer on mount if enabled
+onMounted(() => {
+  if (autoRefresh.value) {
+    startRefreshTimer()
+  }
 })
 
 // Cleanup on unmount
@@ -529,11 +550,12 @@ watch(
   { immediate: true, deep: true }
 )
 
-// Watch for time range changes - just fetch new events
+// Watch for time range changes - just fetch new events and emit change
 watch(
   selectedTimeRange,
-  () => {
+  (newValue) => {
     fetchEvents()
+    emit('duration-changed', newValue)
   }
 )
 </script>

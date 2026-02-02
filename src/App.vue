@@ -20,7 +20,7 @@ const user = ref<UserProfile | null>(null)
 const route = useRoute()
 
 // Dark mode
-const { isDark, toggle: toggleDarkMode } = useDarkMode()
+const { isDark, toggle: toggleDarkMode, setDark } = useDarkMode()
 
 // Video export state
 const { status: exportStatus, progressPercent: exportProgress, isActive: exportIsActive } = useVideoExport()
@@ -121,6 +121,14 @@ onMounted(() => {
   // This restores the session if a valid token exists
   authStore.initialize()
   loadUser()
+
+  // Check for dark mode URL parameter (overrides localStorage)
+  const urlDark = sessionStorage.getItem('een_url_dark')
+  if (urlDark === '1') {
+    setDark(true)
+  } else if (urlDark === '0') {
+    setDark(false)
+  }
 })
 
 onUnmounted(() => {
