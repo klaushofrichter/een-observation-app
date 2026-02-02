@@ -17,6 +17,7 @@ const props = defineProps<{
   liveFeedButtonLabel?: string
   liveFeedButtonClass?: string
   liveFeedCanToggle?: boolean
+  sseError?: { message: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -603,6 +604,11 @@ watch(
           title="Auto-refresh every minute"
         />
       </div>
+    </div>
+
+    <!-- SSE Connection Error -->
+    <div v-if="sseError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
+      SSE: {{ sseError.message }}
     </div>
 
     <!-- Loading State -->

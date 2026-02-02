@@ -1028,11 +1028,6 @@ defineExpose({
       </div>
     </div>
 
-    <!-- SSE Connection Error -->
-    <div v-if="connectionError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
-      SSE: {{ connectionError.message }}
-    </div>
-
     <!-- Alerts Error -->
     <div v-if="alertsError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
       {{ alertsError.message }}

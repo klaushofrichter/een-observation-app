@@ -514,6 +514,7 @@ watch(isDark, () => {
                 :live-feed-button-label="liveEventsPanelRef?.feedButtonLabel"
                 :live-feed-button-class="liveEventsPanelRef?.feedButtonClass"
                 :live-feed-can-toggle="liveEventsPanelRef?.canConnect || liveEventsPanelRef?.isConnected || liveEventsPanelRef?.isConnecting"
+                :sse-error="liveEventsPanelRef?.connectionError"
                 @event-clicked="handleEventClick"
                 @toggle-live-feed="liveEventsPanelRef?.toggleLiveFeed()"
                 @duration-changed="handleEventsDurationChange"
