@@ -12,6 +12,7 @@ import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
+import { getIncludeParameterForEventTypes } from '@/utils/eventDataSchemas'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
@@ -676,6 +677,9 @@ async function fetchEvents(append = false) {
     error.value = null
   }
 
+  // Build dynamic include parameter based on selected event types
+  const includeSchemas = getIncludeParameterForEventTypes(requestTypes)
+
   const result = await listEvents({
     actor: `camera:${requestCameraId}`,
     type__in: requestTypes,
@@ -684,15 +688,7 @@ async function fetchEvents(append = false) {
     pageSize: 100,
     pageToken: append ? nextPageToken.value : undefined,
     sort: '-startTimestamp',
-    include: [
-      'data.een.objectDetection.v1',
-      'data.een.objectClassification.v1',
-      'data.een.fullFrameImageUrl.v1',
-      'data.een.croppedFrameImageUrl.v1',
-      'data.een.fullFrameImageUrlWithOverlay.v1',
-      'data.een.eevaAttributes.v1',
-      'data.een.customLabels.v1'
-    ]
+    include: includeSchemas
   })
 
   // Discard results if a newer request was made or state changed
