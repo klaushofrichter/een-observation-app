@@ -12,6 +12,7 @@ import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
+import { getIncludeParameterForEventTypes } from '@/utils/eventDataSchemas'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
@@ -73,12 +74,13 @@ const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let isProactiveReconnecting = false
 
-// Debounce timer for event type changes
-const DEBOUNCE_DELAY_MS = 500
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
+// Debounce timer for event type changes (used for both fetch and SSE)
+const CHANGE_DEBOUNCE_MS = 500
+let changeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
-// Connection guard - tracks current connection attempt to prevent races
+// Request versioning - tracks current requests to discard stale results
 let connectionAttemptId = 0
+let fetchRequestId = 0
 
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
@@ -381,11 +383,11 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
   }
 }
 
-// Insert a single event from SSE
-function insertEvent(event: Event): void {
+// Insert a single event from SSE - returns true if event was inserted
+function insertEvent(event: Event): boolean {
   // Only insert if event type matches selected types
   if (!props.selectedTypes.includes(event.type)) {
-    return
+    return false
   }
 
   // Get active event's viewport position BEFORE the merge
@@ -393,6 +395,7 @@ function insertEvent(event: Event): void {
   // Track this event as SSE-inserted (will show with blue background)
   sseInsertedIds.value.add(event.id)
   mergeEvents([event], viewportOffset)
+  return true
 }
 
 // ==================== SSE FUNCTIONALITY ====================
@@ -417,9 +420,11 @@ function toggleLiveFeed() {
 // Handle new SSE event
 function handleSseEvent(event: SSEEvent) {
   const typedEvent = event as unknown as Event
-  insertEvent(typedEvent)
-  // Show notification with event type name
-  showNotification(getEventTypeName(typedEvent.type))
+  const wasInserted = insertEvent(typedEvent)
+  // Only show notification if event was actually inserted (matched selected types)
+  if (wasInserted) {
+    showNotification(getEventTypeName(typedEvent.type))
+  }
 }
 
 // Clear the reconnect timer
@@ -430,11 +435,11 @@ function clearReconnectTimer() {
   }
 }
 
-// Clear the debounce timer
-function clearDebounceTimer() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer)
-    debounceTimer = null
+// Clear the change debounce timer
+function clearChangeDebounceTimer() {
+  if (changeDebounceTimer) {
+    clearTimeout(changeDebounceTimer)
+    changeDebounceTimer = null
   }
 }
 
@@ -597,7 +602,7 @@ async function disconnect() {
   connectionAttemptId++
 
   clearReconnectTimer()
-  clearDebounceTimer()
+  clearChangeDebounceTimer()
 
   if (sseConnection.value) {
     sseConnection.value.close()
@@ -613,31 +618,45 @@ async function disconnect() {
   connectionError.value = null
 }
 
-// Debounced reconnection handler
-async function debouncedReconnect(cameraId: string, types: string[]) {
-  clearDebounceTimer()
+// Unified debounced handler for event type/camera changes
+// Handles both fetchEvents and SSE reconnection with a single debounce
+async function debouncedRefreshAndReconnect() {
+  clearChangeDebounceTimer()
 
+  // Immediately invalidate any in-flight fetch requests
+  fetchRequestId++
+
+  // Immediately disconnect SSE to stop receiving events for old types
   const wasConnected = isConnected.value || isConnecting.value
   if (wasConnected) {
     await disconnect()
   }
 
-  if (types.length === 0 || !liveFeedEnabled.value) {
-    return
-  }
+  // Immediately filter existing events by new selected types
+  filterEventsBySelectedTypes()
 
-  debounceTimer = setTimeout(async () => {
-    debounceTimer = null
-    if (props.camera?.id === cameraId && props.selectedTypes.length > 0 && liveFeedEnabled.value) {
+  // Debounce the actual refresh and reconnect
+  changeDebounceTimer = setTimeout(async () => {
+    changeDebounceTimer = null
+
+    // Fetch events if we have camera and types
+    if (props.camera && props.selectedTypes.length > 0) {
+      await fetchEvents()
+    }
+
+    // Reconnect SSE if live feed is enabled and not already connected
+    // (guards against race with auto-reconnect timer)
+    if (props.camera && props.selectedTypes.length > 0 && liveFeedEnabled.value &&
+        !isConnected.value && !isConnecting.value) {
       await connect()
     }
-  }, DEBOUNCE_DELAY_MS)
+  }, CHANGE_DEBOUNCE_MS)
 }
 
 // Expose events for parent component
 defineExpose({ events })
 
-// Fetch historic events
+// Fetch historic events with request versioning to discard stale results
 async function fetchEvents(append = false) {
   if (!props.camera || props.selectedTypes.length === 0) {
     events.value = []
@@ -645,29 +664,48 @@ async function fetchEvents(append = false) {
     return
   }
 
+  // Increment request ID to track this request
+  fetchRequestId++
+  const currentRequestId = fetchRequestId
+
+  // Capture current state at request time for validation
+  const requestCameraId = props.camera.id
+  const requestTypes = [...props.selectedTypes]
+
   loading.value = true
   if (!append) {
     error.value = null
   }
 
+  // Build dynamic include parameter based on selected event types
+  const includeSchemas = getIncludeParameterForEventTypes(requestTypes)
+
   const result = await listEvents({
-    actor: `camera:${props.camera.id}`,
-    type__in: props.selectedTypes,
+    actor: `camera:${requestCameraId}`,
+    type__in: requestTypes,
     startTimestamp__gte: getStartTimestamp(),
     endTimestamp__lte: new Date().toISOString(),
     pageSize: 100,
     pageToken: append ? nextPageToken.value : undefined,
     sort: '-startTimestamp',
-    include: [
-      'data.een.objectDetection.v1',
-      'data.een.objectClassification.v1',
-      'data.een.fullFrameImageUrl.v1',
-      'data.een.croppedFrameImageUrl.v1',
-      'data.een.fullFrameImageUrlWithOverlay.v1',
-      'data.een.eevaAttributes.v1',
-      'data.een.customLabels.v1'
-    ]
+    include: includeSchemas
   })
+
+  // Discard results if a newer request was made or state changed
+  if (currentRequestId !== fetchRequestId) {
+    loading.value = false
+    return // Stale request - discard results
+  }
+
+  // Validate that camera and types still match what we requested
+  const typesMatch = props.camera?.id === requestCameraId &&
+    props.selectedTypes.length === requestTypes.length &&
+    props.selectedTypes.every(t => requestTypes.includes(t))
+
+  if (!typesMatch) {
+    loading.value = false
+    return // State changed during request - discard results
+  }
 
   if (result.error) {
     error.value = result.error
@@ -859,22 +897,32 @@ onUnmounted(async () => {
 // Initialize event type names
 fetchEventTypeNames()
 
-// Watch for camera changes - clear and fetch
+// Watch for camera or selected types changes - unified debounced handler
+// This ensures fetchEvents and SSE reconnection are always in sync
 watch(
-  () => props.camera?.id,
-  () => {
-    events.value = []
-    sseInsertedIds.value.clear()
-    fetchEvents()
-  }
-)
+  [() => props.camera?.id, () => props.selectedTypes],
+  ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
+    const cameraChanged = newCameraId !== oldCameraId
+    const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
 
-// Watch for selected types changes - filter existing events then fetch
-watch(
-  () => props.selectedTypes,
-  () => {
-    filterEventsBySelectedTypes()
-    fetchEvents()
+    if (!cameraChanged && !typesChanged) {
+      return
+    }
+
+    // Clear events on camera change
+    if (cameraChanged) {
+      events.value = []
+      sseInsertedIds.value.clear()
+    }
+
+    // Use unified debounced handler for both fetch and SSE
+    if (newCameraId && newTypes && newTypes.length > 0) {
+      debouncedRefreshAndReconnect()
+    } else {
+      // No camera or no types - clear state and disconnect
+      filterEventsBySelectedTypes()
+      disconnect()
+    }
   },
   { immediate: true, deep: true }
 )
@@ -886,27 +934,6 @@ watch(
     fetchEvents()
     emit('duration-changed', newValue)
   }
-)
-
-// Watch for camera or selected types changes - reconnect SSE with debouncing
-watch(
-  [() => props.camera?.id, () => props.selectedTypes],
-  ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
-    const cameraChanged = newCameraId !== oldCameraId
-    const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
-
-    if (!cameraChanged && !typesChanged) {
-      return
-    }
-
-    // Use debounced reconnection for SSE
-    if (newCameraId && newTypes) {
-      debouncedReconnect(newCameraId, newTypes)
-    } else if (!newCameraId || newTypes.length === 0) {
-      disconnect()
-    }
-  },
-  { deep: true }
 )
 </script>
 
