@@ -393,11 +393,6 @@ function handleEventFilterChange(enabled: boolean) {
   updateUrl()
 }
 
-// Handle SSE event from AlertsPanel - insert into EventsPanel
-function handleSseEvent(event: Record<string, unknown>) {
-  eventsPanelRef.value?.insertEvent(event as unknown as Parameters<typeof eventsPanelRef.value.insertEvent>[0])
-}
-
 // Computed events list from EventsPanel (for MainVideoPlayer to check before API calls)
 const eventsList = computed(() => eventsPanelRef.value?.events || [])
 
@@ -511,14 +506,11 @@ watch(isDark, () => {
                 :active-event-id="playbackEventId"
                 :initial-duration="initialEventsDuration"
                 :initial-auto-refresh="initialEventsAutoRefresh"
-                :live-feed-button-label="alertsPanelRef?.feedButtonLabel"
-                :live-feed-button-class="alertsPanelRef?.feedButtonClass"
-                :live-feed-can-toggle="alertsPanelRef?.canConnect || alertsPanelRef?.isConnected || alertsPanelRef?.isConnecting"
-                :sse-error="alertsPanelRef?.connectionError"
+                :initial-live-feed="initialLiveFeed"
                 @event-clicked="handleEventClick"
-                @toggle-live-feed="alertsPanelRef?.toggleLiveFeed()"
                 @duration-changed="handleEventsDurationChange"
                 @auto-refresh-changed="handleEventsAutoRefreshChange"
+                @live-feed-changed="handleLiveFeedChange"
               />
             </div>
 
@@ -532,13 +524,10 @@ watch(isDark, () => {
                 :active-alert-id="activeAlertId"
                 :initial-duration="initialAlertsDuration"
                 :initial-auto-refresh="initialAlertsAutoRefresh"
-                :initial-live-feed="initialLiveFeed"
                 :initial-event-filter="initialEventFilter"
                 @alert-clicked="handleAlertClick"
-                @sse-event="handleSseEvent"
                 @duration-changed="handleAlertsDurationChange"
                 @auto-refresh-changed="handleAlertsAutoRefreshChange"
-                @live-feed-changed="handleLiveFeedChange"
                 @event-filter-changed="handleEventFilterChange"
               />
             </div>

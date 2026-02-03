@@ -347,10 +347,10 @@ const formattedConfidence = computed(() => {
     return `${Math.round(confidences[0] * 100)}%`
   }
 
-  // Multiple confidence values - show range
+  // Multiple confidence values - show range with count
   const min = Math.min(...confidences)
   const max = Math.max(...confidences)
-  return `between ${Math.round(min * 100)}% and ${Math.round(max * 100)}%`
+  return `between ${Math.round(min * 100)}% and ${Math.round(max * 100)}% (${confidences.length})`
 })
 
 // Handle event card click - seek to timestamp and toggle play/pause
