@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { listEvents, listEventTypes } from 'een-api-toolkit'
-import type { Camera, Event, EenError } from 'een-api-toolkit'
+import {
+  listEvents,
+  listEventTypes,
+  createEventSubscription,
+  connectToEventSubscription,
+  deleteEventSubscription
+} from 'een-api-toolkit'
+import type { Camera, Event, EenError, SSEEvent, SSEConnection, SSEConnectionStatus } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
+import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
@@ -14,17 +21,14 @@ const props = defineProps<{
   activeEventId?: string | null
   initialDuration?: number | null
   initialAutoRefresh?: boolean
-  liveFeedButtonLabel?: string
-  liveFeedButtonClass?: string
-  liveFeedCanToggle?: boolean
-  sseError?: { message: string } | null
+  initialLiveFeed?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'event-clicked', event: { cameraId: string; timestamp: string; eventType: string; eventId: string; boundingBoxes: BoundingBox[]; eventObject: Record<string, unknown> }): void
-  (e: 'toggle-live-feed'): void
   (e: 'duration-changed', duration: number): void
   (e: 'auto-refresh-changed', enabled: boolean): void
+  (e: 'live-feed-changed', enabled: boolean): void
 }>()
 
 // Use shared image cache
@@ -32,6 +36,9 @@ const { loadImage, getImage } = useImageCache()
 
 // Use event age formatting
 const { formatAge } = useEventAge()
+
+// SSE notification
+const { showNotification } = useSseNotification()
 
 // Constants
 const MAX_EVENTS = 500 // Maximum number of events to store
@@ -53,6 +60,25 @@ const autoRefresh = ref(props.initialAutoRefresh ?? false)
 const refreshCountdown = ref(0) // seconds until next refresh
 const AUTO_REFRESH_INTERVAL = 60 // 1 minute in seconds
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+// SSE State
+const subscriptionId = ref<string | null>(null)
+const sseConnection = ref<SSEConnection | null>(null)
+const connectionStatus = ref<SSEConnectionStatus>('disconnected')
+const connectionError = ref<EenError | null>(null)
+const liveFeedEnabled = ref(props.initialLiveFeed ?? false)
+
+// SSE Reconnection timer (subscriptions expire after 15 minutes)
+const SUBSCRIPTION_TTL_MS = 14 * 60 * 1000 // Reconnect at 14 minutes
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isProactiveReconnecting = false
+
+// Debounce timer for event type changes
+const DEBOUNCE_DELAY_MS = 500
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// Connection guard - tracks current connection attempt to prevent races
+let connectionAttemptId = 0
 
 // Refs
 const eventsContainer = ref<HTMLElement | null>(null)
@@ -88,6 +114,31 @@ const refreshButtonLabel = computed(() => {
     return `Refresh in ${refreshCountdown.value}s`
   }
   return `Refresh in ${Math.ceil(refreshCountdown.value / 60)}m`
+})
+
+// SSE Computed
+const isConnected = computed(() => connectionStatus.value === 'connected')
+const isConnecting = computed(() => connectionStatus.value === 'connecting')
+const canConnect = computed(() => {
+  return props.camera && props.selectedTypes.length > 0 && !isConnected.value && !isConnecting.value
+})
+
+// Computed button label based on state
+const feedButtonLabel = computed(() => {
+  if (isConnecting.value) return 'Connecting...'
+  if (isConnected.value) return 'Disable Live Events'
+  return 'Turn Live Events On'
+})
+
+// Computed button styling based on state
+const feedButtonClass = computed(() => {
+  if (isConnecting.value) {
+    return 'bg-yellow-600 hover:bg-yellow-700 text-white'
+  }
+  if (isConnected.value) {
+    return 'bg-green-600 hover:bg-green-700 text-white'
+  }
+  return 'bg-gray-500 hover:bg-gray-600 text-white'
 })
 
 // Get start timestamp for the time range
@@ -190,6 +241,19 @@ function getEventConfidence(event: Event): string | null {
   const min = Math.min(...confidences)
   const max = Math.max(...confidences)
   return `${Math.round(min * 100)}%-${Math.round(max * 100)}%`
+}
+
+// Get confidence count from event data (returns count only if > 1)
+function getEventConfidenceCount(event: Event): number | null {
+  const data = event.data as Array<Record<string, unknown>> | undefined
+  if (!data || !Array.isArray(data)) return null
+
+  const count = data
+    .filter(item => item.type === 'een.objectClassification.v1')
+    .filter(item => typeof item.confidence === 'number')
+    .length
+
+  return count > 1 ? count : null
 }
 
 // Format timestamp for display
@@ -301,7 +365,7 @@ function mergeEvents(newEvents: Event[], previousViewportOffset: number | null =
   }
 }
 
-// Insert a single event from SSE (exposed for parent component)
+// Insert a single event from SSE
 function insertEvent(event: Event): void {
   // Only insert if event type matches selected types
   if (!props.selectedTypes.includes(event.type)) {
@@ -315,8 +379,247 @@ function insertEvent(event: Event): void {
   mergeEvents([event], viewportOffset)
 }
 
-// Expose insertEvent for parent component
-defineExpose({ insertEvent, events })
+// ==================== SSE FUNCTIONALITY ====================
+
+// Toggle live feed on/off
+function toggleLiveFeed() {
+  if (isConnected.value || isConnecting.value) {
+    // Turn off - disconnect and disable
+    liveFeedEnabled.value = false
+    emit('live-feed-changed', false)
+    disconnect()
+  } else {
+    // Turn on - enable and connect
+    liveFeedEnabled.value = true
+    emit('live-feed-changed', true)
+    if (canConnect.value) {
+      connect()
+    }
+  }
+}
+
+// Handle new SSE event
+function handleSseEvent(event: SSEEvent) {
+  const typedEvent = event as unknown as Event
+  insertEvent(typedEvent)
+  // Show notification with event type name
+  showNotification(getEventTypeName(typedEvent.type))
+}
+
+// Clear the reconnect timer
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+// Clear the debounce timer
+function clearDebounceTimer() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+}
+
+// Start the reconnect timer (proactive reconnection before TTL expires)
+function startReconnectTimer() {
+  clearReconnectTimer()
+
+  if (!liveFeedEnabled.value) {
+    return
+  }
+
+  reconnectTimer = setTimeout(() => {
+    if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
+      reconnect()
+    }
+  }, SUBSCRIPTION_TTL_MS)
+}
+
+// Reconnect without clearing events
+async function reconnect() {
+  isProactiveReconnecting = true
+
+  if (sseConnection.value) {
+    sseConnection.value.close()
+    sseConnection.value = null
+  }
+
+  if (subscriptionId.value) {
+    await deleteEventSubscription(subscriptionId.value)
+    subscriptionId.value = null
+  }
+
+  await connectWithoutClearingEvents()
+  isProactiveReconnecting = false
+}
+
+// Handle status change
+function handleStatusChange(status: SSEConnectionStatus) {
+  connectionStatus.value = status
+
+  if (status === 'error' || status === 'disconnected') {
+    clearReconnectTimer()
+
+    if (sseConnection.value) {
+      sseConnection.value = null
+    }
+
+    if (isProactiveReconnecting) {
+      return
+    }
+
+    // Auto-reconnect if feed is enabled
+    if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
+      setTimeout(() => {
+        if (liveFeedEnabled.value && !isConnected.value && !isConnecting.value && !isProactiveReconnecting) {
+          connect()
+        }
+      }, 2000)
+    }
+  } else if (status === 'connected') {
+    startReconnectTimer()
+  }
+}
+
+// Handle SSE error
+function handleSseError(error: Error) {
+  connectionError.value = {
+    code: 'NETWORK_ERROR',
+    message: error.message || 'SSE connection error'
+  }
+}
+
+// Connect to SSE stream
+async function connect() {
+  if (!props.camera || props.selectedTypes.length === 0) return
+
+  connectionAttemptId++
+  const currentAttemptId = connectionAttemptId
+
+  connectionStatus.value = 'connecting'
+  connectionError.value = null
+
+  await createAndConnectSubscription(currentAttemptId)
+}
+
+// Connect without clearing events (for proactive reconnection)
+async function connectWithoutClearingEvents() {
+  if (!props.camera || props.selectedTypes.length === 0) return
+
+  connectionAttemptId++
+  const currentAttemptId = connectionAttemptId
+
+  connectionStatus.value = 'connecting'
+  connectionError.value = null
+
+  await createAndConnectSubscription(currentAttemptId)
+}
+
+// Core subscription creation and connection logic
+async function createAndConnectSubscription(attemptId: number) {
+  const subscriptionResult = await createEventSubscription({
+    deliveryConfig: { type: 'serverSentEvents.v1' },
+    filters: [{
+      actors: [`camera:${props.camera!.id}`],
+      types: props.selectedTypes.map(type => ({ id: type }))
+    }]
+  })
+
+  if (attemptId !== connectionAttemptId) {
+    if (!subscriptionResult.error && subscriptionResult.data?.id) {
+      deleteEventSubscription(subscriptionResult.data.id)
+    }
+    return
+  }
+
+  if (subscriptionResult.error) {
+    connectionError.value = subscriptionResult.error
+    connectionStatus.value = 'error'
+    return
+  }
+
+  subscriptionId.value = subscriptionResult.data.id
+
+  const sseUrl = subscriptionResult.data.deliveryConfig.type === 'serverSentEvents.v1'
+    ? subscriptionResult.data.deliveryConfig.sseUrl
+    : null
+
+  if (!sseUrl) {
+    connectionError.value = {
+      code: 'API_ERROR',
+      message: 'No SSE URL returned from subscription'
+    }
+    connectionStatus.value = 'error'
+    return
+  }
+
+  if (attemptId !== connectionAttemptId) {
+    deleteEventSubscription(subscriptionResult.data.id)
+    subscriptionId.value = null
+    return
+  }
+
+  const connectionResult = connectToEventSubscription(sseUrl, {
+    onEvent: handleSseEvent,
+    onError: handleSseError,
+    onStatusChange: handleStatusChange
+  })
+
+  if (connectionResult.error) {
+    connectionError.value = connectionResult.error
+    connectionStatus.value = 'error'
+    return
+  }
+
+  sseConnection.value = connectionResult.data
+}
+
+// Disconnect from SSE stream
+async function disconnect() {
+  connectionAttemptId++
+
+  clearReconnectTimer()
+  clearDebounceTimer()
+
+  if (sseConnection.value) {
+    sseConnection.value.close()
+    sseConnection.value = null
+  }
+
+  if (subscriptionId.value) {
+    await deleteEventSubscription(subscriptionId.value)
+    subscriptionId.value = null
+  }
+
+  connectionStatus.value = 'disconnected'
+  connectionError.value = null
+}
+
+// Debounced reconnection handler
+async function debouncedReconnect(cameraId: string, types: string[]) {
+  clearDebounceTimer()
+
+  const wasConnected = isConnected.value || isConnecting.value
+  if (wasConnected) {
+    await disconnect()
+  }
+
+  if (types.length === 0 || !liveFeedEnabled.value) {
+    return
+  }
+
+  debounceTimer = setTimeout(async () => {
+    debounceTimer = null
+    if (props.camera?.id === cameraId && props.selectedTypes.length > 0 && liveFeedEnabled.value) {
+      await connect()
+    }
+  }, DEBOUNCE_DELAY_MS)
+}
+
+// Expose events for parent component
+defineExpose({ events })
 
 // Fetch historic events
 async function fetchEvents(append = false) {
@@ -516,16 +819,21 @@ watch(autoRefresh, (enabled) => {
   emit('auto-refresh-changed', enabled)
 })
 
-// Start auto-refresh timer on mount if enabled
+// Start auto-refresh timer on mount if enabled, and connect SSE if enabled
 onMounted(() => {
   if (autoRefresh.value) {
     startRefreshTimer()
   }
+  // Start live feed connection if enabled and we have camera and types
+  if (liveFeedEnabled.value && props.camera && props.selectedTypes.length > 0) {
+    connect()
+  }
 })
 
 // Cleanup on unmount
-onUnmounted(() => {
+onUnmounted(async () => {
   stopRefreshTimer()
+  await disconnect()
 })
 
 // Initialize event type names
@@ -559,6 +867,27 @@ watch(
     emit('duration-changed', newValue)
   }
 )
+
+// Watch for camera or selected types changes - reconnect SSE with debouncing
+watch(
+  [() => props.camera?.id, () => props.selectedTypes],
+  ([newCameraId, newTypes], [oldCameraId, oldTypes]) => {
+    const cameraChanged = newCameraId !== oldCameraId
+    const typesChanged = JSON.stringify(newTypes) !== JSON.stringify(oldTypes)
+
+    if (!cameraChanged && !typesChanged) {
+      return
+    }
+
+    // Use debounced reconnection for SSE
+    if (newCameraId && newTypes) {
+      debouncedReconnect(newCameraId, newTypes)
+    } else if (!newCameraId || newTypes.length === 0) {
+      disconnect()
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -578,14 +907,13 @@ watch(
 
         <!-- Live Feed Toggle Button -->
         <button
-          v-if="liveFeedButtonLabel"
-          @click="emit('toggle-live-feed')"
-          :disabled="!liveFeedCanToggle"
+          @click="toggleLiveFeed"
+          :disabled="!canConnect && !isConnected && !isConnecting"
           class="px-2 py-0.5 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          :class="liveFeedButtonClass"
+          :class="feedButtonClass"
           title="Toggle live event feed"
         >
-          {{ liveFeedButtonLabel }}
+          {{ feedButtonLabel }}
         </button>
         <button
           @click="fetchEvents()"
@@ -607,8 +935,8 @@ watch(
     </div>
 
     <!-- SSE Connection Error -->
-    <div v-if="sseError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
-      SSE: {{ sseError.message }}
+    <div v-if="connectionError" class="text-xs text-red-500 mb-2 px-1 py-1 rounded flex-shrink-0" :class="isDark ? 'bg-red-900/30' : 'bg-red-50'">
+      SSE: {{ connectionError.message }}
     </div>
 
     <!-- Loading State -->
@@ -702,7 +1030,7 @@ watch(
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
           <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence</span>
+            {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence<span v-if="getEventConfidenceCount(event)"> ({{ getEventConfidenceCount(event) }})</span></span>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-400' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>

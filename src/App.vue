@@ -4,6 +4,7 @@ import { useAuthStore, getCurrentUser } from 'een-api-toolkit'
 import { useRoute } from 'vue-router'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useVideoExport } from '@/composables/useVideoExport'
+import { useSseNotification } from '@/composables/useSseNotification'
 import ExportStatusModal from '@/components/ExportStatusModal.vue'
 import { version } from '../package.json'
 
@@ -25,6 +26,9 @@ const { isDark, toggle: toggleDarkMode, setDark } = useDarkMode()
 // Video export state
 const { status: exportStatus, progressPercent: exportProgress, isActive: exportIsActive } = useVideoExport()
 const showExportModal = ref(false)
+
+// SSE notification state
+const { notification: sseNotification } = useSseNotification()
 
 // Provide dark mode state to child components
 provide('isDark', isDark)
@@ -141,8 +145,22 @@ watch(() => authStore.isAuthenticated, loadUser)
 <template>
   <div class="min-h-screen" :class="isDark ? 'bg-gray-900' : 'bg-gray-100'">
     <!-- Top Bar -->
-    <header class="bg-een-primary text-white px-4 py-2 shadow-md">
+    <header class="bg-een-primary text-white px-4 py-2 shadow-md relative">
       <div class="flex items-center justify-between">
+        <!-- SSE Event Notification (centered) -->
+        <Transition name="sse-notification">
+          <div
+            v-if="sseNotification.isVisible"
+            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap z-10"
+            :class="[
+              'bg-green-700 text-white',
+              sseNotification.isFading ? 'opacity-0' : 'opacity-100'
+            ]"
+            style="transition: opacity 1s ease-out;"
+          >
+            {{ sseNotification.message }}
+          </div>
+        </Transition>
         <a
           href="https://github.com/klaushofrichter/een-observation-app"
           target="_blank"
