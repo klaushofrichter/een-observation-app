@@ -10,6 +10,7 @@ import {
 import type { Camera, Event, EenError, SSEEvent, SSEConnection, SSEConnectionStatus } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
+import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
@@ -35,6 +36,9 @@ const { loadImage, getImage } = useImageCache()
 
 // Use event age formatting
 const { formatAge } = useEventAge()
+
+// SSE notification
+const { showNotification } = useSseNotification()
 
 // Constants
 const MAX_EVENTS = 500 // Maximum number of events to store
@@ -396,7 +400,10 @@ function toggleLiveFeed() {
 
 // Handle new SSE event
 function handleSseEvent(event: SSEEvent) {
-  insertEvent(event as unknown as Event)
+  const typedEvent = event as unknown as Event
+  insertEvent(typedEvent)
+  // Show notification with event type name
+  showNotification(getEventTypeName(typedEvent.type))
 }
 
 // Clear the reconnect timer
