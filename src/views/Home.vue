@@ -497,7 +497,7 @@ watch(isDark, () => {
             </div>
 
             <!-- Events Panel -->
-            <div class="flex-1 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <div class="flex-1 min-w-0 border-r p-3" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
               <EventsPanel
                 ref="eventsPanelRef"
                 :camera="selectedCamera"
@@ -515,7 +515,7 @@ watch(isDark, () => {
             </div>
 
             <!-- Alerts Panel -->
-            <div class="flex-1 p-3">
+            <div class="flex-1 min-w-0 p-3">
               <AlertsPanel
                 ref="alertsPanelRef"
                 :camera="selectedCamera"

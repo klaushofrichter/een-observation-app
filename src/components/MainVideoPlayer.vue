@@ -328,6 +328,25 @@ watch(() => props.playbackEventObject, async (newEventObject) => {
   }
 }, { immediate: true })
 
+// Extract EEVA reason from eevaAttributes data (for eevaQueryEvent events)
+const eevaReason = computed(() => {
+  if (!props.playbackEventObject) return null
+
+  // Only show for eevaQueryEvent type
+  const eventType = props.playbackEventObject.type as string | undefined
+  if (eventType !== 'een.eevaQueryEvent.v1') return null
+
+  const data = props.playbackEventObject.data as Array<Record<string, unknown>> | undefined
+  if (!data || !Array.isArray(data)) return null
+
+  // Find eevaAttributes entry and extract reason
+  const eevaAttributes = data.find(item => item.type === 'een.eevaAttributes.v1')
+  if (!eevaAttributes) return null
+
+  const reason = eevaAttributes.reason as string | undefined
+  return reason || null
+})
+
 // Extract confidence from objectClassification data (handles multiple objects)
 const formattedConfidence = computed(() => {
   if (!props.playbackEventObject) return null
@@ -801,6 +820,10 @@ onUnmounted(() => {
           <!-- Export Error Message -->
           <div v-if="exportError" class="mt-1">
             <span class="text-xs text-red-500">{{ exportError }}</span>
+          </div>
+          <!-- EEVA Reason (for eevaQueryEvent events) -->
+          <div v-if="eevaReason" class="mt-1">
+            <span :class="isDark ? 'text-orange-400/70' : 'text-orange-600/70'" class="text-xs block leading-4">{{ eevaReason }}</span>
           </div>
           <!-- Source (if available in event data) -->
           <div v-if="formattedCreatorId" class="mt-1">
