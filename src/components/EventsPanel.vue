@@ -256,6 +256,22 @@ function getEventConfidenceCount(event: Event): number | null {
   return count > 1 ? count : null
 }
 
+// Get EEVA reason from eevaAttributes data (for eevaQueryEvent events)
+function getEevaReason(event: Event): string | null {
+  // Only for eevaQueryEvent type
+  if (event.type !== 'een.eevaQueryEvent.v1') return null
+
+  const data = event.data as Array<Record<string, unknown>> | undefined
+  if (!data || !Array.isArray(data)) return null
+
+  // Find eevaAttributes entry and extract reason
+  const eevaAttributes = data.find(item => item.type === 'een.eevaAttributes.v1')
+  if (!eevaAttributes) return null
+
+  const reason = eevaAttributes.reason as string | undefined
+  return reason || null
+}
+
 // Format timestamp for display
 function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp)
@@ -643,9 +659,13 @@ async function fetchEvents(append = false) {
     pageToken: append ? nextPageToken.value : undefined,
     sort: '-startTimestamp',
     include: [
-      'data.een.fullFrameImageUrl.v1',
       'data.een.objectDetection.v1',
-      'data.een.objectClassification.v1'
+      'data.een.objectClassification.v1',
+      'data.een.fullFrameImageUrl.v1',
+      'data.een.croppedFrameImageUrl.v1',
+      'data.een.fullFrameImageUrlWithOverlay.v1',
+      'data.een.eevaAttributes.v1',
+      'data.een.customLabels.v1'
     ]
   })
 
@@ -982,7 +1002,7 @@ watch(
     <div
       v-else
       ref="eventsContainer"
-      class="flex-1 overflow-y-auto min-h-0 space-y-1"
+      class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 space-y-1"
       :class="isDark ? 'scrollbar-dark' : 'scrollbar-light'"
       @scroll="handleScroll"
     >
@@ -990,7 +1010,7 @@ watch(
         v-for="event in events"
         :key="event.id"
         :data-event-id="event.id"
-        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer"
+        class="relative flex items-center gap-2 p-1.5 rounded transition-colors cursor-pointer overflow-hidden"
         :class="[
           activeEventId === event.id
             ? (isSseInserted(event.id)
@@ -1030,7 +1050,7 @@ watch(
         <!-- Event Info -->
         <div class="flex-1 min-w-0">
           <div class="text-xs font-medium truncate" :class="isDark ? 'text-gray-200' : 'text-gray-700'">
-            {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence<span v-if="getEventConfidenceCount(event)"> ({{ getEventConfidenceCount(event) }})</span></span>
+            {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence<span v-if="getEventConfidenceCount(event)"> ({{ getEventConfidenceCount(event) }})</span></span><span v-if="getEevaReason(event)" :class="isDark ? 'text-gray-400' : 'text-gray-500'"> - {{ getEevaReason(event) }}</span>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-400' : 'text-gray-400'">
             <span>{{ formatTimestamp(event.startTimestamp) }}</span>
