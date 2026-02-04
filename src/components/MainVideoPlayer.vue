@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useAuthStore, getEvent } from 'een-api-toolkit'
+import { useAuthStore, getEvent, getDataSchemasForEventType } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
@@ -211,6 +211,14 @@ const formattedPlaybackTimestamp = computed(() => {
 
 // Current data type for modal title
 const currentDataType = computed(() => props.isAlertSource ? 'Alert' : 'Event')
+
+// Data schemas available for the current event type
+const eventDataSchemas = computed(() => {
+  if (!props.playbackEventObject || props.isAlertSource) return []
+  const eventType = props.playbackEventObject.type as string | undefined
+  if (!eventType) return []
+  return getDataSchemasForEventType(eventType)
+})
 
 // Calculate event duration from startTimestamp and endTimestamp
 const eventDuration = computed(() => {
@@ -917,6 +925,19 @@ onUnmounted(() => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+          </div>
+
+          <!-- Data Schemas (for events only) -->
+          <div v-if="eventDataSchemas.length > 0" class="px-4 pt-3 pb-1">
+            <div class="text-xs mb-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Available Data Schemas for <span class="font-bold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">{{ playbackEventType }}</span> Event:</div>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="schema in eventDataSchemas"
+                :key="schema"
+                class="px-2 py-0.5 text-xs rounded-full font-mono"
+                :class="isDark ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'"
+              >{{ schema }}</span>
             </div>
           </div>
 
