@@ -5,14 +5,14 @@ import {
   listEventTypes,
   createEventSubscription,
   connectToEventSubscription,
-  deleteEventSubscription
+  deleteEventSubscription,
+  getIncludeParameterForEventTypes
 } from 'een-api-toolkit'
 import type { Camera, Event, EenError, SSEEvent, SSEConnection, SSEConnectionStatus } from 'een-api-toolkit'
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
-import { getIncludeParameterForEventTypes } from '@/utils/eventDataSchemas'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
