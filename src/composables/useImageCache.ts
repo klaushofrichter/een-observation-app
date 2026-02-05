@@ -52,7 +52,8 @@ class LRUImageCache {
 const imageCache = new LRUImageCache(250)
 
 // Track images currently being loaded to prevent duplicate requests
-const loadingImages = new Set<string>()
+// Maps loadKey to a promise so other callers can await the same request
+const loadingImages = new Map<string, Promise<string | null>>()
 
 export function useImageCache() {
   // Local reactive state for component-specific image mapping
@@ -72,33 +73,43 @@ export function useImageCache() {
       return cachedImage
     }
 
-    // Check if already loading
+    // Check if already loading - await the in-flight request then use cache
     const loadKey = `${cameraId}:${timestamp}`
-    if (loadingImages.has(loadKey)) {
+    const existingRequest = loadingImages.get(loadKey)
+    if (existingRequest) {
+      await existingRequest
+      const cachedAfterWait = imageCache.get(cameraId, timestamp)
+      if (cachedAfterWait) {
+        images.value[eventId] = cachedAfterWait
+        return cachedAfterWait
+      }
       return null
     }
 
-    loadingImages.add(loadKey)
+    const request = (async (): Promise<string | null> => {
+      try {
+        const result = await getRecordedImage({
+          deviceId: cameraId,
+          type: 'preview',
+          timestamp__gte: timestamp,
+          targetWidth: 384
+        })
 
-    try {
-      const result = await getRecordedImage({
-        deviceId: cameraId,
-        type: 'preview',
-        timestamp__gte: timestamp,
-        targetWidth: 384
-      })
-
-      if (!result.error && result.data) {
-        // Store in LRU cache and local state
-        imageCache.set(cameraId, timestamp, result.data.imageData)
-        images.value[eventId] = result.data.imageData
-        return result.data.imageData
+        if (!result.error && result.data) {
+          // Store in LRU cache and local state
+          imageCache.set(cameraId, timestamp, result.data.imageData)
+          images.value[eventId] = result.data.imageData
+          return result.data.imageData
+        }
+      } finally {
+        loadingImages.delete(loadKey)
       }
-    } finally {
-      loadingImages.delete(loadKey)
-    }
 
-    return null
+      return null
+    })()
+
+    loadingImages.set(loadKey, request)
+    return request
   }
 
   function getImage(eventId: string): string | null {

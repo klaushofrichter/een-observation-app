@@ -1,9 +1,9 @@
 {
   "name": "een-camera-observation-app",
-  "version": "1.0.29",
+  "version": "1.0.30",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "lsof -ti:3333 2>/dev/null | xargs kill -9 2>/dev/null; vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",

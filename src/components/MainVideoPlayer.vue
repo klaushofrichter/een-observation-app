@@ -220,6 +220,12 @@ const eventDataSchemas = computed(() => {
   return getDataSchemasForEventType(eventType)
 })
 
+// Include parameter values used in the alert API call
+const alertIncludeValues = computed(() => {
+  if (!props.playbackEventObject || !props.isAlertSource) return []
+  return ['data', 'actions', 'dataSchemas', 'description']
+})
+
 // Calculate event duration from startTimestamp and endTimestamp
 const eventDuration = computed(() => {
   if (!props.playbackEventObject) return null
@@ -938,6 +944,19 @@ onUnmounted(() => {
                 class="px-2 py-0.5 text-xs rounded-full font-mono"
                 :class="isDark ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'"
               >{{ schema }}</span>
+            </div>
+          </div>
+
+          <!-- Include values (for alerts only) -->
+          <div v-if="alertIncludeValues.length > 0" class="px-4 pt-3 pb-1">
+            <div class="text-xs mb-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Include Parameter for <span class="font-bold" :class="isDark ? 'text-gray-200' : 'text-gray-700'">{{ playbackEventType }}</span> Alert:</div>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="value in alertIncludeValues"
+                :key="value"
+                class="px-2 py-0.5 text-xs rounded-full font-mono"
+                :class="isDark ? 'bg-amber-900/50 text-amber-300' : 'bg-amber-100 text-amber-700'"
+              >{{ value }}</span>
             </div>
           </div>
 
