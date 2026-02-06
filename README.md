@@ -16,6 +16,12 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Recorded Playback** - HLS video playback for historic events with precise timestamp seeking
 - **Camera Information Panel** - Display camera status, name, ID, and account info
 - **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
+- **Keyboard Shortcuts** (recorded playback mode):
+  - `Space` — Toggle play/pause
+  - `Left Arrow` — Skip backward 10 seconds
+  - `Right Arrow` — Skip forward 10 seconds
+  - `Enter` — Seek to event timestamp and pause
+- **Auto-Retry Offline Cameras** - Cameras that are offline are automatically re-checked every 60 seconds; live stream and sidebar previews recover when the camera comes back online
 
 ### Video Export & Download
 - **Download Button** - Export the currently playing video clip as an MP4 file
@@ -216,12 +222,12 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 - **Authentication:** `initEenToolkit`, `useAuthStore`, `getAuthUrl`, `handleAuthCallback`, `revokeToken`
 - **User:** `getCurrentUser`
-- **Devices:** `getCameras`, `getLayouts`
+- **Devices:** `getCameras`, `getCamera`, `getLayouts`
 - **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
-- **Events:** `listEvents`, `listEventTypes`, `listEventFieldValues`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
-- **Alerts:** `listAlerts`
+- **Events:** `listEvents`, `getEvent`, `listEventTypes`, `listEventFieldValues`, `getDataSchemasForEventType`, `getIncludeParameterForEventTypes`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
+- **Alerts:** `listAlerts`, `listEventAlertConditionRules`, `listAlertActions`
 - **Notifications:** `listNotifications`
-- **Jobs/Export:** `createJob`, `getJob`, `listFiles`, `downloadFile`
+- **Jobs/Export:** `createExportJob`, `getJob`, `downloadFile`, `deleteJob`
 
 ## Prerequisites
 
@@ -268,6 +274,9 @@ This application uses the following functions from [een-api-toolkit](https://git
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
 | `npm test` | Run Playwright E2E tests |
+| `npm run test:e2e` | Run Playwright E2E tests (alias) |
+| `npm run test:ui` | Run Playwright tests with interactive UI |
+| `npm run test:headed` | Run Playwright tests in headed browser |
 
 ## Project Structure
 
@@ -280,12 +289,16 @@ src/
 │   ├── MainVideoPlayer.vue    # HD video with Live SDK + HLS playback
 │   ├── EventTypesPanel.vue    # Event type toggles
 │   ├── EventsPanel.vue         # Events panel with thumbnails (historic + live)
-│   ├── AlertsPanel.vue        # Alerts panel with SSE live feed
+│   ├── AlertsPanel.vue        # Alerts panel with notifications and priority badges
+│   ├── BoundingBoxOverlay.vue  # Bounding box overlay for object detection
 │   └── ExportStatusModal.vue  # Video export progress modal
 ├── composables/
-│   ├── useImageCache.ts       # LRU cache for event thumbnails
-│   ├── useHlsPlayer.ts        # HLS.js player management
+│   ├── useBoundingBoxes.ts    # Bounding box extraction from event data
+│   ├── useDarkMode.ts         # Dark mode toggle with localStorage persistence
 │   ├── useEventAge.ts         # Event age formatting
+│   ├── useHlsPlayer.ts        # HLS.js player management
+│   ├── useImageCache.ts       # LRU cache for event thumbnails
+│   ├── useSseNotification.ts  # Toast notifications for SSE events
 │   └── useVideoExport.ts      # Video export with auto-clipping
 ├── views/
 │   ├── Home.vue               # Main application view
@@ -296,13 +309,16 @@ src/
 │   └── index.ts               # Vue Router with auth guards
 ├── assets/
 │   └── main.css               # Tailwind CSS styles
+├── types/
+│   └── een.ts                 # Type re-exports and helper types
 ├── App.vue                    # Root component with auth initialization
 └── main.ts                    # Application entry point
 
 tests/
 ├── auth.spec.ts               # Authentication tests
 ├── cameras.spec.ts            # Camera selection tests
-└── events.spec.ts             # Events system tests
+├── events.spec.ts             # Events system tests
+└── url-state.spec.ts          # URL parameter state persistence tests
 ```
 
 ## Testing
@@ -352,8 +368,12 @@ This project includes specialized Claude Code agents for een-api-toolkit develop
 - `een-devices-agent` - Camera and bridge management
 - `een-media-agent` - Video streaming and playback
 - `een-events-agent` - Events and SSE subscriptions
+- `een-automations-agent` - Alert automation rules and actions
+- `een-jobs-agent` - Async jobs, exports, and file downloads
 - `een-grouping-agent` - Layouts and camera groupings
 - `een-users-agent` - User management
+- `test-runner` - E2E and unit test execution
+- `docs-accuracy-reviewer` - Documentation verification against codebase
 
 ## License
 
