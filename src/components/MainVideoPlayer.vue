@@ -98,6 +98,49 @@ function handleEscKey(event: KeyboardEvent) {
   }
 }
 
+// Handle keyboard shortcuts for HLS recorded playback
+function handlePlaybackKeys(event: KeyboardEvent) {
+  // Ignore when typing in inputs, textareas, or selects
+  const tag = (event.target as HTMLElement)?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+  // Ignore when modal is open
+  if (showEventDataModal.value) return
+
+  // Only active in recorded mode with a loaded video
+  if (isLiveMode.value || !hlsPlayer.videoUrl.value) return
+
+  const video = hlsPlayer.videoRef.value
+  if (!video) return
+
+  switch (event.key) {
+    case ' ':
+      event.preventDefault()
+      if (video.paused) {
+        video.play()
+        isHlsPlaying.value = true
+      } else {
+        video.pause()
+        isHlsPlaying.value = false
+      }
+      break
+    case 'ArrowRight':
+      event.preventDefault()
+      video.currentTime = Math.min(video.currentTime + 10, video.duration)
+      break
+    case 'ArrowLeft':
+      event.preventDefault()
+      video.currentTime = Math.max(video.currentTime - 10, 0)
+      break
+    case 'Enter':
+      event.preventDefault()
+      hlsPlayer.seekToEventStart()
+      video.pause()
+      isHlsPlaying.value = false
+      break
+  }
+}
+
 // Watch modal state to add/remove ESC key listener
 watch(showEventDataModal, (isOpen) => {
   if (isOpen) {
@@ -570,6 +613,7 @@ watch([() => props.playbackMode, () => props.playbackTimestamp], async ([newMode
 })
 
 onMounted(() => {
+  document.addEventListener('keydown', handlePlaybackKeys)
   if (isLiveMode.value) {
     initializeLiveVideo()
   }
@@ -581,6 +625,7 @@ onUnmounted(() => {
   stopLivePlayer()
   hlsPlayer.destroyHls()
   document.removeEventListener('keydown', handleEscKey)
+  document.removeEventListener('keydown', handlePlaybackKeys)
 })
 </script>
 

@@ -158,7 +158,7 @@ function formatDuration(ms: number | null): string {
         <div class="p-4 space-y-4">
           <!-- Status Message Banner -->
           <div
-            v-if="status === 'export_complete'"
+            v-if="status === 'export_complete' || status === 'downloading'"
             class="p-3 rounded-lg flex items-center gap-2"
             :class="isDark ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-blue-50 border border-blue-200'"
           >
