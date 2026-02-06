@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useAuthStore, getEvent, getDataSchemasForEventType } from 'een-api-toolkit'
+import { useAuthStore, getEvent, getCamera, getDataSchemasForEventType } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
@@ -43,6 +43,9 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const isStreaming = ref(false)
 const isMounted = ref(true)
+
+// Retry timer for offline cameras
+let retryInterval: ReturnType<typeof setInterval> | null = null
 
 // HLS playback state
 const isHlsPlaying = ref(true) // Assume playing initially since autoplay is enabled
@@ -446,6 +449,29 @@ function stopLivePlayer() {
   isStreaming.value = false
 }
 
+// Stop the retry timer for offline cameras
+function stopRetryTimer() {
+  if (retryInterval) {
+    clearInterval(retryInterval)
+    retryInterval = null
+  }
+}
+
+// Start a retry timer that re-checks camera status every 60 seconds
+function startRetryTimer() {
+  if (retryInterval) return // Already running
+  retryInterval = setInterval(async () => {
+    const result = await getCamera(props.camera.id, { include: ['status'] })
+    if (result.error || !result.data) return
+    if (isCameraOnline(result.data.status)) {
+      stopRetryTimer()
+      // Update camera status so the UI badge reflects the change
+      props.camera.status = result.data.status
+      initializeLiveVideo()
+    }
+  }, 60000)
+}
+
 // Initialize live video stream using Live Video SDK
 async function initializeLiveVideo() {
   if (!isMounted.value) return
@@ -459,7 +485,8 @@ async function initializeLiveVideo() {
   // Check if camera is online
   if (!isOnline.value) {
     loading.value = false
-    error.value = 'Camera is offline'
+    error.value = 'Camera is offline - retrying every 60s'
+    startRetryTimer()
     return
   }
 
@@ -496,6 +523,7 @@ async function initializeLiveVideo() {
     if (isMounted.value) {
       isStreaming.value = true
       loading.value = false
+      stopRetryTimer()
     }
   } catch (e) {
     if (isMounted.value) {
@@ -510,6 +538,7 @@ async function initializeLiveVideo() {
 // Watch for camera changes - stop current player and start new one
 watch(() => props.camera.id, async (newId, oldId) => {
   if (newId !== oldId) {
+    stopRetryTimer()
     // Stop HLS if playing
     hlsPlayer.resetVideo()
     // Small delay to ensure clean transition
@@ -524,6 +553,7 @@ watch(() => props.camera.id, async (newId, oldId) => {
 watch([() => props.playbackMode, () => props.playbackTimestamp], async ([newMode, newTimestamp], [oldMode]) => {
   if (newMode === 'recorded' && newTimestamp) {
     // Switch to HLS playback
+    stopRetryTimer()
     stopLivePlayer()
     await nextTick()
     await hlsPlayer.loadVideo(props.camera.id, newTimestamp)
@@ -547,6 +577,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isMounted.value = false
+  stopRetryTimer()
   stopLivePlayer()
   hlsPlayer.destroyHls()
   document.removeEventListener('keydown', handleEscKey)

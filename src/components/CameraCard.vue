@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-import { listFeeds, initMediaSession } from 'een-api-toolkit'
+import { listFeeds, initMediaSession, getCamera } from 'een-api-toolkit'
 import type { Camera, CameraStatus, Feed } from 'een-api-toolkit'
 
 const props = defineProps<{
@@ -22,6 +22,9 @@ const isMounted = ref(true)
 
 // Track if media session was initialized
 const mediaSessionInitialized = ref(false)
+
+// Retry timer for offline cameras
+let retryInterval: ReturnType<typeof setInterval> | null = null
 
 // Helper to extract status string from the union type
 function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
@@ -59,6 +62,28 @@ const statusClass = computed(() => {
   }
 })
 
+// Stop the retry timer for offline cameras
+function stopRetryTimer() {
+  if (retryInterval) {
+    clearInterval(retryInterval)
+    retryInterval = null
+  }
+}
+
+// Start a retry timer that re-checks camera status every 60 seconds
+function startRetryTimer() {
+  if (retryInterval) return
+  retryInterval = setInterval(async () => {
+    const result = await getCamera(props.camera.id, { include: ['status'] })
+    if (result.error || !result.data) return
+    if (isCameraOnline(result.data.status)) {
+      stopRetryTimer()
+      props.camera.status = result.data.status
+      initializePreview()
+    }
+  }, 60000)
+}
+
 // Initialize media session and fetch preview feed
 async function initializePreview() {
   if (!isMounted.value) return
@@ -70,7 +95,8 @@ async function initializePreview() {
   // Check if camera is online
   if (!isOnline.value) {
     loading.value = false
-    error.value = 'Camera offline'
+    error.value = 'Camera offline - retrying every 60s'
+    startRetryTimer()
     return
   }
 
@@ -108,6 +134,7 @@ async function initializePreview() {
 
     if (previewFeed?.multipartUrl) {
       previewUrl.value = previewFeed.multipartUrl
+      stopRetryTimer()
     } else {
       error.value = 'No preview available'
     }
@@ -129,6 +156,7 @@ function handleClick() {
 
 // Watch for camera changes
 watch(() => props.camera.id, () => {
+  stopRetryTimer()
   initializePreview()
 })
 
@@ -138,6 +166,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isMounted.value = false
+  stopRetryTimer()
   previewUrl.value = null
 })
 </script>
