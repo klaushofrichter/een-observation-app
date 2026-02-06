@@ -257,22 +257,62 @@ function getNotificationActions(notification: Notification): string[] {
   return actions
 }
 
-// Get tooltip text for notification action (includes description if available)
+// Get tooltip text for notification action (title on first line, details on second, notes on third)
 function getNotificationActionTooltip(action: string, notification?: Notification): string {
-  const tooltips: Record<string, string> = {
-    email: 'Email notification',
-    sms: 'SMS notification',
-    push: 'Push notification',
-    gui: 'GUI notification'
+  const titles: Record<string, string> = {
+    email: 'Email Notification',
+    sms: 'SMS Notification',
+    push: 'Push Notification',
+    gui: 'GUI Notification'
   }
-  const baseTooltip = tooltips[action] || 'Notification (unknown type)'
+  const title = titles[action] || `${action.charAt(0).toUpperCase() + action.slice(1)} Notification`
 
-  // Add description on second line if available
-  const description = (notification as unknown as { description?: string })?.description
+  const notifData = notification as unknown as { description?: string; notes?: string | null }
+  const description = notifData?.description
+  const notes = notifData?.notes
+  let tooltip = title
   if (description) {
-    return `${baseTooltip}\n${description}`
+    tooltip += '\n' + description
   }
-  return baseTooltip
+  if (notes) {
+    tooltip += '\n' + notes
+  }
+  return tooltip
+}
+
+// Get tooltip text for action icons (title on first line, name on second, notes on third)
+function getActionTooltip(type: string, name?: string, actionId?: string): string {
+  const titles: Record<string, string> = {
+    zapier: 'Zapier Action',
+    webhook: 'Webhook Action',
+    notification: 'Notification Action'
+  }
+  const title = titles[type] || `${type.charAt(0).toUpperCase() + type.slice(1)} Action`
+
+  let tooltip = title
+  if (name) {
+    tooltip += '\n' + name
+  }
+  // Look up notes from the action definition
+  if (actionId) {
+    const actionDef = alertActionsMap.value.get(actionId)
+    const notes = (actionDef as unknown as { notes?: string | null })?.notes
+    if (notes) {
+      tooltip += '\n' + notes
+    }
+  }
+  return tooltip
+}
+
+// Get tooltip for event alert condition rule (title, name, notes)
+function getRuleTooltip(rule: EventAlertConditionRule): string {
+  let tooltip = 'Event Condition'
+  tooltip += '\n' + (rule.name || 'Unnamed rule')
+  const notes = (rule as unknown as { notes?: string }).notes
+  if (notes) {
+    tooltip += '\n' + notes
+  }
+  return tooltip
 }
 
 // Get actions from alert (e.g., zapier, webhook) - actions is an object with UUIDs as keys
@@ -519,7 +559,7 @@ async function fetchAlerts(append = false) {
     alertType__in: alertTypes,
     pageSize: 100,
     pageToken: append ? alertsNextPageToken.value : undefined,
-    include: ['data', 'actions', 'description'],
+    include: ['data', 'actions', 'dataSchemas', 'description'],
     sort: ['-timestamp']
   })
 
@@ -753,7 +793,7 @@ onUnmounted(() => {
               v-if="alert.eventAlertConditionRule"
               @click="showRuleDetails(alert.eventAlertConditionRule!, $event)"
               class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-              title="View event alert condition rule"
+              :title="getRuleTooltip(alert.eventAlertConditionRule!)"
             >
               <svg class="w-3.5 h-3.5" :class="isDark ? 'text-purple-400' : 'text-purple-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -767,7 +807,7 @@ onUnmounted(() => {
                 <button
                   v-if="actionItem.type === 'zapier'"
                   class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-                  :title="actionItem.name || 'Zapier action'"
+                  :title="getActionTooltip('zapier', actionItem.name, actionItem.id)"
                   @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
                 >
                   <svg class="w-3.5 h-3.5" :class="isDark ? 'text-orange-400' : 'text-orange-500'" viewBox="0 0 24 24" fill="currentColor">
@@ -778,11 +818,22 @@ onUnmounted(() => {
                 <button
                   v-else-if="actionItem.type === 'webhook'"
                   class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
-                  :title="actionItem.name || 'Webhook action'"
+                  :title="getActionTooltip('webhook', actionItem.name, actionItem.id)"
                   @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
                 >
                   <svg class="w-3.5 h-3.5" :class="isDark ? 'text-indigo-400' : 'text-indigo-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                </button>
+                <!-- Notification icon (megaphone) -->
+                <button
+                  v-else-if="actionItem.type === 'notification'"
+                  class="flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
+                  :title="getActionTooltip('notification', actionItem.name, actionItem.id)"
+                  @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
+                >
+                  <svg class="w-3.5 h-3.5" :class="isDark ? 'text-teal-400' : 'text-teal-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
                   </svg>
                 </button>
                 <!-- Unknown action type -->
@@ -790,7 +841,7 @@ onUnmounted(() => {
                   v-else
                   class="text-xs flex-shrink-0 p-0.5 rounded hover:bg-black/10 transition-colors"
                   :class="isDark ? 'text-gray-400' : 'text-gray-500'"
-                  :title="actionItem.name || actionItem.type"
+                  :title="getActionTooltip(actionItem.type, actionItem.name, actionItem.id)"
                   @click="showActionDetails(actionItem.id, actionItem.execution, $event)"
                 >
                   {{ actionItem.type }}
@@ -799,6 +850,7 @@ onUnmounted(() => {
             </template>
             <!-- 3. Notification Icons (for all notifications associated with this alert) -->
             <template v-if="alert.notifications && alert.notifications.length > 0">
+              <span class="text-xs font-bold" :class="isDark ? 'text-gray-400' : 'text-gray-500'">(</span>
               <template v-for="notification in alert.notifications" :key="notification.id">
                 <button
                   v-for="action in getNotificationActions(notification)"
@@ -831,6 +883,7 @@ onUnmounted(() => {
                   </svg>
                 </button>
               </template>
+              <span class="text-xs font-bold" :class="isDark ? 'text-gray-400' : 'text-gray-500'">)</span>
             </template>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">

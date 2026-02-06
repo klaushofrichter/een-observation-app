@@ -76,6 +76,20 @@ router.beforeEach((to, _from, next) => {
   // Handle URL parameters
   // Store them in sessionStorage so they persist through the OAuth flow but not across sessions
   if (to.path === '/') {
+    // When navigating with no URL parameters, clear all stored URL parameters
+    if (Object.keys(to.query).length === 0) {
+      sessionStorage.removeItem('een_url_camera_ids')
+      sessionStorage.removeItem('een_url_selected')
+      sessionStorage.removeItem('een_url_events')
+      sessionStorage.removeItem('een_url_ed')
+      sessionStorage.removeItem('een_url_ad')
+      sessionStorage.removeItem('een_url_er')
+      sessionStorage.removeItem('een_url_ar')
+      sessionStorage.removeItem('een_url_live')
+      sessionStorage.removeItem('een_url_filter')
+      sessionStorage.removeItem('een_url_dark')
+    }
+
     if (to.query.id) {
       // Store camera IDs from URL
       sessionStorage.setItem('een_url_camera_ids', to.query.id as string)
