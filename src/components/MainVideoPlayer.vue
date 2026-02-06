@@ -596,6 +596,7 @@ watch(() => props.camera.id, async (newId, oldId) => {
 watch([() => props.playbackMode, () => props.playbackTimestamp], async ([newMode, newTimestamp], [oldMode]) => {
   if (newMode === 'recorded' && newTimestamp) {
     // Switch to HLS playback
+    exportError.value = null
     stopRetryTimer()
     stopLivePlayer()
     await nextTick()
