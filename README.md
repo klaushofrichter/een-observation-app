@@ -325,32 +325,76 @@ src/
 └── main.ts                    # Application entry point
 
 tests/
-├── auth.spec.ts               # Authentication tests
-├── cameras.spec.ts            # Camera selection tests
-├── events.spec.ts             # Events system tests
-└── url-state.spec.ts          # URL parameter state persistence tests
+├── auth.spec.ts               # Authentication and user info modal tests (8)
+├── cameras.spec.ts            # Camera sidebar, selection, and info tests (11)
+├── dark-mode.spec.ts          # Dark mode toggle and URL parameter tests (2)
+├── event-types.spec.ts        # Event type selection and count tests (3)
+├── events.spec.ts             # Events and alerts panel tests (10)
+├── url-state.spec.ts          # URL parameter state persistence tests (1)
+└── user-info.spec.ts          # User info modal detail tests (3)
 ```
 
 ## Testing
 
-The project includes Playwright E2E tests covering:
+The project includes 38 Playwright E2E tests across 7 spec files:
 
-- OAuth login/logout flow
-- Camera sidebar and selection
-- Video player switching
-- Camera data modal (Details/Settings/Bridge views) and Google Maps link
-- Event type toggles
-- Events and alerts panels
-- URL state persistence across login/logout
+### Authentication (`auth.spec.ts` — 8 tests)
+- Redirect unauthenticated users to login page
+- Redirect unknown routes to login
+- Complete OAuth login flow
+- Show authenticated user info
+- Logout successfully
+- Open, close (ESC), and close (backdrop click) user info modal
 
-Run tests:
+### Camera Selection (`cameras.spec.ts` — 11 tests)
+- Display camera sidebar with cameras
+- Select camera and show main video player
+- Show camera info panel with details
+- Switch video player between cameras
+- Show camera status badges
+- Restore camera selection from URL after logout/login
+- Open Google Maps link and interact with camera data modal (Details/Settings/Bridge views)
+- Filter cameras by layout selection
+- Display exactly three cameras for test account
+- Show Bridge ID in camera info panel
+- Camera search/filter (gracefully skips if search input not available)
+
+### Dark Mode (`dark-mode.spec.ts` — 2 tests)
+- Toggle dark mode on/off and verify `dark` class on `<html>`
+- Dark mode URL parameter persistence through OAuth login flow
+
+### Event Types (`event-types.spec.ts` — 3 tests)
+- Toggle individual event types on/off with URL `events` parameter update
+- Select all / deselect all event types via "All" checkbox
+- Event type count indicator (e.g., "3/5 selected") updates on toggle
+
+### Events & Alerts (`events.spec.ts` — 10 tests)
+- Display three event panels (Event Types, Events, Alerts)
+- Show event type toggles with motion detection preselected
+- Toggle event types on/off
+- Show events panel content
+- Show alerts panel with controls
+- Change events time range (verify `ed` URL parameter)
+- Toggle auto-refresh checkbox (verify `er` URL parameter and countdown)
+- Toggle live events button (verify `live` URL parameter)
+- Change alerts time range (verify `ad` URL parameter)
+- Toggle event filter for alerts (verify `filter` URL parameter)
+
+### URL State Persistence (`url-state.spec.ts` — 1 test)
+- Restore camera selection and event type filters from URL after logout/login
+
+### User Info Modal (`user-info.spec.ts` — 3 tests)
+- Display base URL and copy to clipboard with feedback
+- Show masked access token, reveal via "Show & Copy", and copy feedback
+- Display token expiration timestamp and time remaining
+
+### Running Tests
+
 ```bash
-npm test
-```
-
-Run tests with UI:
-```bash
-npx playwright test --ui
+npm test                        # Run all tests
+npx playwright test --ui        # Interactive UI mode
+npm run test:headed             # Headed browser mode
+npx playwright test --list      # List all tests without running
 ```
 
 ## Configuration Notes
