@@ -347,4 +347,119 @@ test.describe('Camera Selection and Video', () => {
 
     console.log('URL camera restoration test completed successfully')
   })
+
+  test('should open Google Maps from map icon and interact with camera data modal', async ({ page, context }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for main video player and camera info panel
+    const mainVideoPlayer = page.locator('.main-video-player')
+    await expect(mainVideoPlayer).toBeVisible({ timeout: TIMEOUTS.VIDEO_LOAD })
+    await expect(mainVideoPlayer.getByText('Camera Information')).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Check if map icon is present (camera may or may not have devicePosition)
+    const mapLink = mainVideoPlayer.locator('a[title*="Google Maps"], a[title*="View on"]')
+    const mapVisible = await mapLink.isVisible().catch(() => false)
+
+    if (mapVisible) {
+      // Verify the link points to Google Maps
+      const href = await mapLink.getAttribute('href')
+      expect(href).toContain('google.com/maps')
+      console.log(`Map link found: ${href}`)
+
+      // Verify it opens in a new tab
+      const target = await mapLink.getAttribute('target')
+      expect(target).toBe('_blank')
+
+      // Click and verify new tab opens (then close it)
+      const [newPage] = await Promise.all([
+        context.waitForEvent('page', { timeout: TIMEOUTS.UI_UPDATE }),
+        mapLink.click()
+      ])
+      console.log(`Google Maps opened in new tab: ${newPage.url()}`)
+      await newPage.close()
+    } else {
+      console.log('No map icon visible (camera may lack devicePosition data)')
+    }
+
+    // Click the (i) button next to "Camera Information" to open the camera data modal
+    const infoButton = mainVideoPlayer.locator('button[title="View full camera data"]')
+    await expect(infoButton).toBeVisible()
+    await infoButton.click()
+
+    // Modal should appear with "Camera Data" title
+    const modal = page.locator('.fixed.inset-0.z-50')
+    await expect(modal).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(modal.locator('h3', { hasText: 'Camera Data' })).toBeVisible()
+
+    // Include parameter pills should be visible
+    const pillContainer = modal.locator('.flex.flex-wrap.gap-1')
+    await expect(modal.getByText('Include Parameters:')).toBeVisible()
+    await expect(pillContainer.getByText('bridge', { exact: true })).toBeVisible()
+    await expect(pillContainer.getByText('deviceInfo', { exact: true })).toBeVisible()
+
+    // Details button should be highlighted (active view)
+    const detailsButton = modal.getByRole('button', { name: 'Details' })
+    const settingsButton = modal.getByRole('button', { name: 'Settings' })
+    const bridgeButton = modal.getByRole('button', { name: 'Bridge' })
+    await expect(detailsButton).toBeVisible()
+    await expect(settingsButton).toBeVisible()
+    await expect(bridgeButton).toBeVisible()
+
+    // Wait for camera details JSON to load
+    await expect(modal.locator('pre')).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+    console.log('Camera data modal opened with details view')
+
+    // Click Settings button
+    await settingsButton.click()
+    await expect(modal.locator('h3', { hasText: 'Camera Settings' })).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Wait for settings JSON to load
+    await expect(modal.locator('pre')).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Include pills should show settings values
+    await expect(pillContainer.getByText('schema', { exact: true })).toBeVisible()
+    console.log('Switched to camera settings view')
+
+    // Click Bridge button
+    await bridgeButton.click()
+    await expect(modal.locator('h3', { hasText: 'Bridge Data' })).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Wait for bridge JSON to load
+    await expect(modal.locator('pre')).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Include pills should show bridge values
+    await expect(pillContainer.getByText('networkInfo', { exact: true })).toBeVisible()
+    console.log('Switched to bridge data view')
+
+    // Click Details button to go back
+    await detailsButton.click()
+    await expect(modal.locator('h3', { hasText: 'Camera Data' })).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await expect(modal.locator('pre')).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+    console.log('Switched back to camera details view')
+
+    // Close modal with the X button
+    const closeButton = modal.locator('button').filter({ has: page.locator('svg path[d="M6 18L18 6M6 6l12 12"]') })
+    await closeButton.click()
+    await expect(modal).not.toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    console.log('Modal closed successfully')
+
+    // Reopen and close with ESC key
+    await infoButton.click()
+    await expect(modal).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await page.keyboard.press('Escape')
+    await expect(modal).not.toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    console.log('Modal closed with ESC key')
+
+    // Reopen and close with backdrop click
+    await infoButton.click()
+    await expect(modal).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    await modal.locator('.absolute.inset-0.bg-black\\/50').click({ position: { x: 10, y: 10 } })
+    await expect(modal).not.toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+    console.log('Modal closed with backdrop click')
+
+    console.log('Camera data modal and map icon test completed successfully')
+  })
 })
