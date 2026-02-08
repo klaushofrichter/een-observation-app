@@ -55,7 +55,7 @@ async function performLogin(page: Page, username: string, password: string): Pro
   ])
 
   const currentUrl = page.url()
-  if (new URL(currentUrl).hostname.endsWith('eagleeyenetworks.com')) {
+  if (/(?:^|\.)eagleeyenetworks\.com$/.test(new URL(currentUrl).hostname)) {
     const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
     await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })
     await emailInput.fill(username)
