@@ -15,6 +15,13 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
 - **Recorded Playback** - HLS video playback for historic events with precise timestamp seeking
 - **Camera Information Panel** - Display camera status, name, ID, and account info
+- **Google Maps Link** - Red map pin icon next to camera name when location data is available; opens Google Maps in a new tab with address tooltip
+- **Camera Data Modal** - Click the (i) button next to "Camera Information" to view full API data:
+  - **Details** view — full camera JSON with all include parameters
+  - **Settings** view — camera settings with schema and proposed values
+  - **Bridge** view — bridge details with all include parameters
+  - Include parameter pill badges shown for each view
+  - Copy to clipboard, close via X/ESC/backdrop click
 - **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
 - **Keyboard Shortcuts** (recorded playback mode):
   - `Space` — Toggle play/pause
@@ -84,6 +91,7 @@ The bottom section of the application contains three panels for event management
 - **Event Data Modal** - View complete event JSON with syntax highlighting
 - **Alert Data Modal** - View complete alert JSON with syntax highlighting
 - **Notification Data Modal** - View notification JSON for alerts with notifications
+- **Camera Data Modal** - View camera details, settings, or bridge data with include parameter pills
 - **Copy to Clipboard** - One-click copy of JSON data
 - **ESC to Close** - Press Escape or click outside to close modals
 
@@ -222,7 +230,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 - **Authentication:** `initEenToolkit`, `useAuthStore`, `getAuthUrl`, `handleAuthCallback`, `revokeToken`
 - **User:** `getCurrentUser`
-- **Devices:** `getCameras`, `getCamera`, `getLayouts`
+- **Devices:** `getCameras`, `getCamera`, `getCameraSettings`, `getBridge`, `getLayouts`
 - **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
 - **Events:** `listEvents`, `getEvent`, `listEventTypes`, `listEventFieldValues`, `getDataSchemasForEventType`, `getIncludeParameterForEventTypes`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
 - **Alerts:** `listAlerts`, `listEventAlertConditionRules`, `listAlertActions`
@@ -309,36 +317,84 @@ src/
 │   └── index.ts               # Vue Router with auth guards
 ├── assets/
 │   └── main.css               # Tailwind CSS styles
+├── utils/
+│   └── eventTypeHash.ts       # DJB2 hash for URL event type encoding
 ├── types/
 │   └── een.ts                 # Type re-exports and helper types
 ├── App.vue                    # Root component with auth initialization
 └── main.ts                    # Application entry point
 
 tests/
-├── auth.spec.ts               # Authentication tests
-├── cameras.spec.ts            # Camera selection tests
-├── events.spec.ts             # Events system tests
-└── url-state.spec.ts          # URL parameter state persistence tests
+├── auth.spec.ts               # Authentication and user info modal tests (8)
+├── cameras.spec.ts            # Camera sidebar, selection, and info tests (11)
+├── dark-mode.spec.ts          # Dark mode toggle and URL parameter tests (2)
+├── event-types.spec.ts        # Event type selection and count tests (3)
+├── events.spec.ts             # Events and alerts panel tests (10)
+├── url-state.spec.ts          # URL parameter state persistence tests (1)
+└── user-info.spec.ts          # User info modal detail tests (3)
 ```
 
 ## Testing
 
-The project includes Playwright E2E tests covering:
+The project includes 38 Playwright E2E tests across 7 spec files:
 
-- OAuth login/logout flow
-- Camera sidebar and selection
-- Video player switching
-- Event type toggles
-- Events and alerts panels
+### Authentication (`auth.spec.ts` — 8 tests)
+- Redirect unauthenticated users to login page
+- Redirect unknown routes to login
+- Complete OAuth login flow
+- Show authenticated user info
+- Logout successfully
+- Open, close (ESC), and close (backdrop click) user info modal
 
-Run tests:
+### Camera Selection (`cameras.spec.ts` — 11 tests)
+- Display camera sidebar with cameras
+- Select camera and show main video player
+- Show camera info panel with details
+- Switch video player between cameras
+- Show camera status badges
+- Restore camera selection from URL after logout/login
+- Open Google Maps link and interact with camera data modal (Details/Settings/Bridge views)
+- Filter cameras by layout selection
+- Display exactly three cameras for test account
+- Show Bridge ID in camera info panel
+- Camera search/filter (gracefully skips if search input not available)
+
+### Dark Mode (`dark-mode.spec.ts` — 2 tests)
+- Toggle dark mode on/off and verify `dark` class on `<html>`
+- Dark mode URL parameter persistence through OAuth login flow
+
+### Event Types (`event-types.spec.ts` — 3 tests)
+- Toggle individual event types on/off with URL `events` parameter update
+- Select all / deselect all event types via "All" checkbox
+- Event type count indicator (e.g., "3/5 selected") updates on toggle
+
+### Events & Alerts (`events.spec.ts` — 10 tests)
+- Display three event panels (Event Types, Events, Alerts)
+- Show event type toggles with motion detection preselected
+- Toggle event types on/off
+- Show events panel content
+- Show alerts panel with controls
+- Change events time range (verify `ed` URL parameter)
+- Toggle auto-refresh checkbox (verify `er` URL parameter and countdown)
+- Toggle live events button (verify `live` URL parameter)
+- Change alerts time range (verify `ad` URL parameter)
+- Toggle event filter for alerts (verify `filter` URL parameter)
+
+### URL State Persistence (`url-state.spec.ts` — 1 test)
+- Restore camera selection and event type filters from URL after logout/login
+
+### User Info Modal (`user-info.spec.ts` — 3 tests)
+- Display base URL and copy to clipboard with feedback
+- Show masked access token, reveal via "Show & Copy", and copy feedback
+- Display token expiration timestamp and time remaining
+
+### Running Tests
+
 ```bash
-npm test
-```
-
-Run tests with UI:
-```bash
-npx playwright test --ui
+npm test                        # Run all tests
+npx playwright test --ui        # Interactive UI mode
+npm run test:headed             # Headed browser mode
+npx playwright test --list      # List all tests without running
 ```
 
 ## Configuration Notes

@@ -10,6 +10,10 @@ dotenv.config()
  * 1. Camera sidebar displays cameras
  * 2. Camera selection updates main video
  * 3. Camera info panel shows details
+ * 4. Filter cameras by layout selection
+ * 5. Display three cameras for test account
+ * 6. Show Bridge ID in camera info panel
+ * 7. Show camera search and filter results
  */
 
 const TIMEOUTS = {
@@ -57,7 +61,7 @@ async function performLogin(page: Page, username: string, password: string): Pro
 
   // Check if we're on the EEN OAuth page or already redirected back
   const currentUrl = page.url()
-  if (currentUrl.includes('eagleeyenetworks.com')) {
+  if (/(?:^|\.)eagleeyenetworks\.com$/.test(new URL(currentUrl).hostname)) {
     // Need to complete OAuth login form
     const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
     await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })
@@ -461,5 +465,171 @@ test.describe('Camera Selection and Video', () => {
     console.log('Modal closed with backdrop click')
 
     console.log('Camera data modal and map icon test completed successfully')
+  })
+
+  test('should filter cameras by layout selection', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera sidebar and cards to load
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    const cameraCards = sidebar.locator('.camera-card')
+    await expect(cameraCards.first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Note initial camera count under "All Cameras"
+    const initialCount = await cameraCards.count()
+    console.log(`Initial camera count (All Cameras): ${initialCount}`)
+
+    // Get layout dropdown
+    const layoutSelect = sidebar.locator('select[title="Select layout"]')
+    await expect(layoutSelect).toBeVisible()
+
+    // Check available options
+    const options = layoutSelect.locator('option')
+    const optionCount = await options.count()
+    console.log(`Layout options available: ${optionCount}`)
+
+    if (optionCount > 1) {
+      // Find a layout option that isn't "All Cameras" or "URL-cameras"
+      let selectedLayout = false
+      for (let i = 0; i < optionCount; i++) {
+        const value = await options.nth(i).getAttribute('value')
+        if (value !== 'all' && value !== 'url') {
+          const text = await options.nth(i).textContent()
+          console.log(`Selecting layout: ${text} (value: ${value})`)
+          await layoutSelect.selectOption(value!)
+          await page.waitForTimeout(2000)
+          selectedLayout = true
+
+          // Camera list may have changed
+          const layoutCount = await cameraCards.count()
+          console.log(`Camera count after layout selection: ${layoutCount}`)
+          break
+        }
+      }
+
+      if (selectedLayout) {
+        // Switch back to "All Cameras"
+        await layoutSelect.selectOption('all')
+        await page.waitForTimeout(2000)
+
+        const restoredCount = await cameraCards.count()
+        console.log(`Camera count after restoring All Cameras: ${restoredCount}`)
+        expect(restoredCount).toBe(initialCount)
+      }
+    } else {
+      console.log('No additional layouts available, skipping layout filter test')
+    }
+
+    console.log('Layout filter test completed successfully')
+  })
+
+  test('should display three cameras for test account', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera sidebar and cards to load
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    const cameraCards = sidebar.locator('.camera-card')
+    await expect(cameraCards.first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Count camera cards - should be exactly 3
+    const cardCount = await cameraCards.count()
+    console.log(`Found ${cardCount} camera(s)`)
+    expect(cardCount).toBe(3)
+
+    // Verify each camera has a name (h3 text) and status badge
+    for (let i = 0; i < cardCount; i++) {
+      const card = cameraCards.nth(i)
+      const name = await card.locator('h3').textContent()
+      expect(name).toBeTruthy()
+      expect(name!.length).toBeGreaterThan(0)
+
+      const statusBadge = card.locator('[class*="rounded-full"]')
+      await expect(statusBadge).toBeVisible()
+      const statusText = await statusBadge.textContent()
+      expect(statusText).toBeTruthy()
+
+      console.log(`Camera ${i + 1}: "${name}" - Status: ${statusText}`)
+    }
+
+    console.log('Three cameras display test completed successfully')
+  })
+
+  test('should show Bridge ID in camera info panel', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for main video player and camera info panel
+    const mainVideoPlayer = page.locator('.main-video-player')
+    await expect(mainVideoPlayer).toBeVisible({ timeout: TIMEOUTS.VIDEO_LOAD })
+    await expect(mainVideoPlayer.getByText('Camera Information')).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Verify "Bridge ID" label exists
+    const bridgeIdLabel = mainVideoPlayer.locator('label', { hasText: 'Bridge ID' })
+    await expect(bridgeIdLabel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Verify the bridge ID value is displayed (non-empty monospace text next to the label)
+    const bridgeIdValue = mainVideoPlayer.locator('label:has-text("Bridge ID") + p')
+    await expect(bridgeIdValue).toBeVisible()
+    const bridgeIdText = await bridgeIdValue.textContent()
+    expect(bridgeIdText).toBeTruthy()
+    expect(bridgeIdText!.trim().length).toBeGreaterThan(0)
+    console.log(`Bridge ID: ${bridgeIdText}`)
+
+    console.log('Bridge ID display test completed successfully')
+  })
+
+  test('should show camera search and filter results', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera sidebar and cards to load
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    const cameraCards = sidebar.locator('.camera-card')
+    await expect(cameraCards.first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Get the name of the first camera
+    const firstName = await cameraCards.first().locator('h3').textContent()
+    console.log(`First camera name: ${firstName}`)
+
+    // Look for search input in sidebar
+    const searchInput = sidebar.locator('input[type="text"], input[type="search"], input[placeholder*="search" i], input[placeholder*="filter" i]')
+    const searchExists = await searchInput.isVisible().catch(() => false)
+
+    if (searchExists) {
+      // Type a partial camera name
+      const partialName = firstName!.substring(0, 3)
+      console.log(`Searching for: ${partialName}`)
+      await searchInput.fill(partialName)
+      await page.waitForTimeout(1000)
+
+      // Verify filtered results
+      const filteredCount = await cameraCards.count()
+      console.log(`Filtered results: ${filteredCount}`)
+      expect(filteredCount).toBeGreaterThan(0)
+
+      // Clear search
+      await searchInput.clear()
+      await page.waitForTimeout(1000)
+    } else {
+      console.log('No search input found in camera sidebar - search feature not available')
+    }
+
+    console.log('Camera search test completed successfully')
   })
 })

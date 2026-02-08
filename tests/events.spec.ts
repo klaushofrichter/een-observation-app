@@ -11,6 +11,11 @@ dotenv.config()
  * 2. Motion detection is preselected
  * 3. Events panel loads events
  * 4. Alerts panel shows SSE connection
+ * 5. Change events time range
+ * 6. Toggle auto-refresh checkbox in events panel
+ * 7. Toggle live events button
+ * 8. Change alerts time range
+ * 9. Toggle event filter for alerts
  */
 
 const TIMEOUTS = {
@@ -257,5 +262,222 @@ test.describe('Events System', () => {
     await expect(alertsPanel.locator('input[type="checkbox"]')).toBeVisible()
 
     console.log('Alerts panel test completed successfully')
+  })
+
+  test('should change events time range', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera selection
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Events panel
+    const eventsPanel = page.locator('.events-panel')
+    await expect(eventsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Get the time range dropdown
+    const timeRangeSelect = eventsPanel.locator('select')
+    await expect(timeRangeSelect).toBeVisible()
+
+    // Change to "Last 24h" (value 1440)
+    await timeRangeSelect.selectOption({ label: 'Last 24h' })
+    await page.waitForTimeout(1000)
+
+    // Verify URL updates with ed=24h
+    expect(page.url()).toContain('ed=24h')
+    console.log('Changed to Last 24h, URL contains ed=24h')
+
+    // Change to "Last 10 min" (value 10)
+    await timeRangeSelect.selectOption({ label: 'Last 10 min' })
+    await page.waitForTimeout(1000)
+
+    // Verify URL updates with ed=10m
+    expect(page.url()).toContain('ed=10m')
+    console.log('Changed to Last 10 min, URL contains ed=10m')
+
+    console.log('Events time range test completed successfully')
+  })
+
+  test('should toggle auto-refresh checkbox in events panel', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera selection
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Events panel - use EVENTS_LOAD timeout as it may take time to appear after camera selection
+    const eventsPanel = page.locator('.events-panel')
+    await expect(eventsPanel).toBeVisible({ timeout: TIMEOUTS.EVENTS_LOAD })
+
+    // Find auto-refresh checkbox
+    const autoRefreshCheckbox = eventsPanel.locator('input[type="checkbox"][title="Auto-refresh every minute"]')
+    await expect(autoRefreshCheckbox).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Check initial state
+    const initialChecked = await autoRefreshCheckbox.isChecked()
+    console.log(`Initial auto-refresh state: ${initialChecked}`)
+
+    // Toggle it on
+    if (!initialChecked) {
+      await autoRefreshCheckbox.click()
+      await page.waitForTimeout(500)
+
+      // Verify URL parameter er=1 appears
+      expect(page.url()).toContain('er=1')
+      console.log('Auto-refresh enabled, URL contains er=1')
+
+      // Verify refresh button shows countdown text (wait for loading to finish)
+      const refreshBtn = eventsPanel.getByTitle('Refresh events')
+      await expect(refreshBtn).not.toHaveText('Loading...', { timeout: TIMEOUTS.EVENTS_LOAD })
+      const refreshText = await refreshBtn.textContent()
+      console.log(`Refresh button text: ${refreshText}`)
+      expect(refreshText).toMatch(/Refresh in \d+/)
+    }
+
+    // Toggle it off
+    await autoRefreshCheckbox.click()
+    await page.waitForTimeout(500)
+
+    if (!initialChecked) {
+      // Was off, turned on, now off again - er should not be in URL
+      expect(page.url()).not.toContain('er=1')
+      console.log('Auto-refresh disabled, er removed from URL')
+    }
+
+    console.log('Auto-refresh toggle test completed successfully')
+  })
+
+  test('should toggle live events button', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera selection
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Events panel
+    const eventsPanel = page.locator('.events-panel')
+    await expect(eventsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Find live events button
+    const liveButton = eventsPanel.getByTitle('Toggle live event feed')
+    await expect(liveButton).toBeVisible()
+
+    // Verify initial state - should show "Turn Live Events On" with gray styling
+    const initialText = await liveButton.textContent()
+    console.log(`Initial live button text: ${initialText}`)
+    expect(initialText).toContain('Turn Live Events On')
+
+    // Click to enable live events
+    await liveButton.click()
+    await page.waitForTimeout(2000)
+
+    // Verify button changes - could be "Connecting..." or "Disable Live Events"
+    const afterClickText = await liveButton.textContent()
+    console.log(`After click live button text: ${afterClickText}`)
+    expect(afterClickText).toMatch(/Connecting|Disable Live Events/)
+
+    // Verify URL parameter live=1 appears
+    expect(page.url()).toContain('live=1')
+    console.log('Live events enabled, URL contains live=1')
+
+    // Click again to disable
+    await liveButton.click()
+    await page.waitForTimeout(1000)
+
+    // Verify button reverts to "Turn Live Events On"
+    const revertedText = await liveButton.textContent()
+    console.log(`Reverted live button text: ${revertedText}`)
+    expect(revertedText).toContain('Turn Live Events On')
+
+    // Verify live parameter removed from URL
+    expect(page.url()).not.toContain('live=1')
+    console.log('Live events toggle test completed successfully')
+  })
+
+  test('should change alerts time range', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera selection
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Alerts panel
+    const alertsPanel = page.locator('.alerts-panel')
+    await expect(alertsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Get the time range dropdown
+    const timeRangeSelect = alertsPanel.locator('select')
+    await expect(timeRangeSelect).toBeVisible()
+
+    // Change to "Last week" (value 10080)
+    await timeRangeSelect.selectOption({ label: 'Last week' })
+    await page.waitForTimeout(1000)
+
+    // Verify URL updates with ad=1w
+    expect(page.url()).toContain('ad=1w')
+    console.log('Changed alerts to Last week, URL contains ad=1w')
+
+    console.log('Alerts time range test completed successfully')
+  })
+
+  test('should toggle event filter for alerts', async ({ page }) => {
+    skipIfNoProxy()
+    skipIfNoCredentials()
+
+    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+
+    // Wait for camera selection
+    const sidebar = page.locator('.camera-sidebar')
+    await expect(sidebar.locator('.camera-card').first()).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+
+    // Alerts panel
+    const alertsPanel = page.locator('.alerts-panel')
+    await expect(alertsPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
+
+    // Find event filter button
+    const filterButton = alertsPanel.getByTitle('Filter alerts by selected event types')
+    await expect(filterButton).toBeVisible()
+
+    // Verify initial state - should show "Enable Event Filter"
+    const initialText = await filterButton.textContent()
+    console.log(`Initial filter button text: ${initialText}`)
+    expect(initialText).toContain('Enable Event Filter')
+
+    // Click to enable
+    await filterButton.click()
+    await page.waitForTimeout(1000)
+
+    // Verify button changes color and text
+    const enabledText = await filterButton.textContent()
+    console.log(`Enabled filter button text: ${enabledText}`)
+    expect(enabledText).toContain('Disable Event Filter')
+
+    // Verify URL parameter filter=1 appears
+    expect(page.url()).toContain('filter=1')
+    console.log('Event filter enabled, URL contains filter=1')
+
+    // Click to disable
+    await filterButton.click()
+    await page.waitForTimeout(1000)
+
+    // Verify button reverts
+    const disabledText = await filterButton.textContent()
+    expect(disabledText).toContain('Enable Event Filter')
+
+    // Verify filter parameter removed from URL
+    expect(page.url()).not.toContain('filter=1')
+    console.log('Event filter toggle test completed successfully')
   })
 })
