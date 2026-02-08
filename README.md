@@ -15,6 +15,13 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
 - **Recorded Playback** - HLS video playback for historic events with precise timestamp seeking
 - **Camera Information Panel** - Display camera status, name, ID, and account info
+- **Google Maps Link** - Red map pin icon next to camera name when location data is available; opens Google Maps in a new tab with address tooltip
+- **Camera Data Modal** - Click the (i) button next to "Camera Information" to view full API data:
+  - **Details** view — full camera JSON with all include parameters
+  - **Settings** view — camera settings with schema and proposed values
+  - **Bridge** view — bridge details with all include parameters
+  - Include parameter pill badges shown for each view
+  - Copy to clipboard, close via X/ESC/backdrop click
 - **Event Playback Controls** - Click the event card to play/pause and seek to the event timestamp
 - **Keyboard Shortcuts** (recorded playback mode):
   - `Space` — Toggle play/pause
@@ -84,6 +91,7 @@ The bottom section of the application contains three panels for event management
 - **Event Data Modal** - View complete event JSON with syntax highlighting
 - **Alert Data Modal** - View complete alert JSON with syntax highlighting
 - **Notification Data Modal** - View notification JSON for alerts with notifications
+- **Camera Data Modal** - View camera details, settings, or bridge data with include parameter pills
 - **Copy to Clipboard** - One-click copy of JSON data
 - **ESC to Close** - Press Escape or click outside to close modals
 
@@ -222,7 +230,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 - **Authentication:** `initEenToolkit`, `useAuthStore`, `getAuthUrl`, `handleAuthCallback`, `revokeToken`
 - **User:** `getCurrentUser`
-- **Devices:** `getCameras`, `getCamera`, `getLayouts`
+- **Devices:** `getCameras`, `getCamera`, `getCameraSettings`, `getBridge`, `getLayouts`
 - **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
 - **Events:** `listEvents`, `getEvent`, `listEventTypes`, `listEventFieldValues`, `getDataSchemasForEventType`, `getIncludeParameterForEventTypes`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
 - **Alerts:** `listAlerts`, `listEventAlertConditionRules`, `listAlertActions`
@@ -309,6 +317,8 @@ src/
 │   └── index.ts               # Vue Router with auth guards
 ├── assets/
 │   └── main.css               # Tailwind CSS styles
+├── utils/
+│   └── eventTypeHash.ts       # DJB2 hash for URL event type encoding
 ├── types/
 │   └── een.ts                 # Type re-exports and helper types
 ├── App.vue                    # Root component with auth initialization
@@ -328,8 +338,10 @@ The project includes Playwright E2E tests covering:
 - OAuth login/logout flow
 - Camera sidebar and selection
 - Video player switching
+- Camera data modal (Details/Settings/Bridge views) and Google Maps link
 - Event type toggles
 - Events and alerts panels
+- URL state persistence across login/logout
 
 Run tests:
 ```bash
