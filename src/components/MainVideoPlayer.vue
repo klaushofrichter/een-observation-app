@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useAuthStore, getEvent, getCamera, getDataSchemasForEventType } from 'een-api-toolkit'
+import { useAuthStore, getEvent, getCamera, getCameraSettings, getBridge, getDataSchemasForEventType } from 'een-api-toolkit'
 import type { Camera, CameraStatus } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
@@ -87,6 +87,37 @@ const isWithinEventTimeRange = computed(() => {
 const showEventDataModal = ref(false)
 const copiedToClipboard = ref(false)
 
+// Camera data modal state
+const showCameraDataModal = ref(false)
+const cameraDataResponse = ref<Record<string, unknown> | null>(null)
+const cameraDataLoading = ref(false)
+const cameraDataCopied = ref(false)
+
+// Camera modal view state
+const cameraModalView = ref<'details' | 'settings' | 'bridge'>('details')
+const cameraSettingsResponse = ref<Record<string, unknown> | null>(null)
+const cameraSettingsLoading = ref(false)
+const bridgeDataResponse = ref<Record<string, unknown> | null>(null)
+const bridgeDataLoading = ref(false)
+
+// All valid include values for getCameraSettings
+const CAMERA_SETTINGS_INCLUDE_VALUES = ['schema', 'proposedValues'] as const
+
+// All valid include values for getBridge
+const BRIDGE_INCLUDE_VALUES = [
+  'status', 'locationSummary', 'deviceAddress', 'timeZone',
+  'notes', 'tags', 'devicePosition', 'networkInfo', 'deviceInfo',
+  'effectivePermissions', 'resourceStatusCounts', 'resourceCounts'
+]
+
+// All valid include values for getCamera
+const CAMERA_INCLUDE_VALUES = [
+  'bridge', 'account', 'status', 'locationSummary', 'deviceAddress', 'timeZone',
+  'notes', 'tags', 'devicePosition', 'networkInfo', 'deviceInfo', 'effectivePermissions',
+  'firmware', 'shareDetails', 'visibleByBridges', 'capabilities', 'analog', 'packages',
+  'dewarpConfig', 'adminCredentials', 'publicSafetySharing', 'enabledAnalytics'
+]
+
 // Video export state
 const { isActive: exportIsActive, startExport } = useVideoExport()
 const exportError = ref<string | null>(null)
@@ -95,6 +126,7 @@ const exportError = ref<string | null>(null)
 function handleEscKey(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     showEventDataModal.value = false
+    showCameraDataModal.value = false
   }
 }
 
@@ -105,7 +137,7 @@ function handlePlaybackKeys(event: KeyboardEvent) {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
   // Ignore when modal is open
-  if (showEventDataModal.value) return
+  if (showEventDataModal.value || showCameraDataModal.value) return
 
   // Only active in recorded mode with a loaded video
   if (isLiveMode.value || !hlsPlayer.videoUrl.value) return
@@ -142,8 +174,8 @@ function handlePlaybackKeys(event: KeyboardEvent) {
 }
 
 // Watch modal state to add/remove ESC key listener
-watch(showEventDataModal, (isOpen) => {
-  if (isOpen) {
+watch([showEventDataModal, showCameraDataModal], ([eventOpen, cameraOpen]) => {
+  if (eventOpen || cameraOpen) {
     document.addEventListener('keydown', handleEscKey)
   } else {
     document.removeEventListener('keydown', handleEscKey)
@@ -163,6 +195,130 @@ async function copyDataToClipboard() {
     console.error('Failed to copy to clipboard:', err)
   }
 }
+
+// Fetch camera details with all include values
+async function fetchCameraDetails() {
+  cameraDataLoading.value = true
+  cameraDataResponse.value = null
+  cameraModalView.value = 'details'
+  cameraDataCopied.value = false
+  showCameraDataModal.value = true
+  try {
+    const { data, error: apiError } = await getCamera(props.camera.id, { include: CAMERA_INCLUDE_VALUES })
+    if (apiError) {
+      cameraDataResponse.value = { error: apiError.message || 'Failed to fetch camera details' }
+    } else {
+      cameraDataResponse.value = data as unknown as Record<string, unknown>
+    }
+  } catch (err) {
+    console.error('Failed to fetch camera details:', err)
+    cameraDataResponse.value = { error: 'Failed to fetch camera details', details: String(err) }
+  } finally {
+    cameraDataLoading.value = false
+  }
+}
+
+// Copy camera data to clipboard (details or settings, whichever is active)
+async function copyCameraDataToClipboard() {
+  const data = activeCameraModalData.value
+  if (!data) return
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+    cameraDataCopied.value = true
+    setTimeout(() => {
+      cameraDataCopied.value = false
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err)
+  }
+}
+
+// Fetch camera settings with all include values
+async function fetchCameraSettings() {
+  cameraSettingsLoading.value = true
+  cameraSettingsResponse.value = null
+  cameraModalView.value = 'settings'
+  cameraDataCopied.value = false
+  try {
+    const { data, error: apiError } = await getCameraSettings(props.camera.id, { include: [...CAMERA_SETTINGS_INCLUDE_VALUES] })
+    if (apiError) {
+      cameraSettingsResponse.value = { error: apiError.message || 'Failed to fetch camera settings' }
+    } else {
+      cameraSettingsResponse.value = data as unknown as Record<string, unknown>
+    }
+  } catch (err) {
+    console.error('Failed to fetch camera settings:', err)
+    cameraSettingsResponse.value = { error: 'Failed to fetch camera settings', details: String(err) }
+  } finally {
+    cameraSettingsLoading.value = false
+  }
+}
+
+// Fetch bridge details with all include values
+async function fetchBridgeDetails() {
+  if (!props.camera.bridgeId) {
+    bridgeDataResponse.value = { error: 'No bridge associated with this camera' }
+    cameraModalView.value = 'bridge'
+    cameraDataCopied.value = false
+    return
+  }
+  bridgeDataLoading.value = true
+  bridgeDataResponse.value = null
+  cameraModalView.value = 'bridge'
+  cameraDataCopied.value = false
+  try {
+    const { data, error: apiError } = await getBridge(props.camera.bridgeId, { include: BRIDGE_INCLUDE_VALUES })
+    if (apiError) {
+      bridgeDataResponse.value = { error: apiError.message || 'Failed to fetch bridge details' }
+    } else {
+      bridgeDataResponse.value = data as unknown as Record<string, unknown>
+    }
+  } catch (err) {
+    console.error('Failed to fetch bridge details:', err)
+    bridgeDataResponse.value = { error: 'Failed to fetch bridge details', details: String(err) }
+  } finally {
+    bridgeDataLoading.value = false
+  }
+}
+
+// Switch camera modal view (no fetch needed for details since data is already loaded)
+function switchCameraModalView(view: 'details' | 'settings' | 'bridge') {
+  cameraDataCopied.value = false
+  if (view === 'details') {
+    cameraModalView.value = 'details'
+  } else if (view === 'settings') {
+    fetchCameraSettings()
+  } else {
+    fetchBridgeDetails()
+  }
+}
+
+// Active modal data for copy (depends on current view)
+const activeCameraModalData = computed(() => {
+  if (cameraModalView.value === 'settings') return cameraSettingsResponse.value
+  if (cameraModalView.value === 'bridge') return bridgeDataResponse.value
+  return cameraDataResponse.value
+})
+
+const activeCameraModalLoading = computed(() => {
+  if (cameraModalView.value === 'settings') return cameraSettingsLoading.value
+  if (cameraModalView.value === 'bridge') return bridgeDataLoading.value
+  return cameraDataLoading.value
+})
+
+// Active include values for the current view
+const activeCameraModalIncludeValues = computed(() => {
+  if (cameraModalView.value === 'settings') return [...CAMERA_SETTINGS_INCLUDE_VALUES]
+  if (cameraModalView.value === 'bridge') return BRIDGE_INCLUDE_VALUES
+  return CAMERA_INCLUDE_VALUES
+})
+
+// Modal title based on current view
+const cameraModalTitle = computed(() => {
+  if (cameraModalView.value === 'settings') return 'Camera Settings'
+  if (cameraModalView.value === 'bridge') return 'Bridge Data'
+  return 'Camera Data'
+})
 
 // Handle video download - exports the currently playing video clip
 async function handleDownloadClick(e: Event) {
@@ -220,6 +376,26 @@ function isCameraOnline(status?: CameraStatus | { connectionStatus?: CameraStatu
 
 // Computed status values
 const statusString = computed(() => getStatusString(props.camera.status))
+
+// Google Maps URL from camera devicePosition
+const googleMapsUrl = computed(() => {
+  const pos = props.camera.devicePosition
+  if (pos?.latitude != null && pos?.longitude != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${pos.latitude},${pos.longitude}`
+  }
+  return null
+})
+
+// Tooltip for Google Maps icon
+const googleMapsTooltip = computed(() => {
+  const cam = props.camera as unknown as Record<string, unknown>
+  const addr = cam.deviceAddress as { name?: string; address?: string } | undefined
+  const parts: string[] = ['View on Google Maps']
+  if (addr?.name) parts.push(addr.name)
+  if (addr?.address) parts.push(addr.address)
+  return parts.join('\n')
+})
+
 const isOnline = computed(() => isCameraOnline(props.camera.status))
 
 // Status badge styling
@@ -814,12 +990,36 @@ onUnmounted(() => {
       class="w-80 flex-shrink-0 rounded-lg p-4 overflow-y-auto border"
       :class="isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'"
     >
-      <h3 :class="isDark ? 'text-white' : 'text-gray-800'" class="font-semibold text-lg mb-4">Camera Information</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 :class="isDark ? 'text-white' : 'text-gray-800'" class="font-semibold text-lg">Camera Information</h3>
+        <button
+          @click="fetchCameraDetails"
+          class="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border transition-colors focus:outline-none"
+          :class="isDark ? 'border-teal-400 text-teal-400 hover:bg-teal-400 hover:text-gray-900' : 'border-teal-600 text-teal-600 hover:bg-teal-600 hover:text-white'"
+          title="View full camera data"
+        >
+          i
+        </button>
+      </div>
 
       <div class="space-y-4">
         <!-- Camera Name -->
-        <div>
+        <div class="flex items-center justify-between gap-2">
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="text-sm font-medium">{{ camera.name }}</p>
+          <a
+            v-if="googleMapsUrl"
+            :href="googleMapsUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex-shrink-0 transition-colors"
+            :class="isDark ? 'text-red-400 hover:text-red-300' : 'text-red-500 hover:text-red-600'"
+            :title="googleMapsTooltip"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </a>
         </div>
 
         <!-- Status -->
@@ -1043,6 +1243,125 @@ onUnmounted(() => {
               class="text-xs font-mono p-4 rounded overflow-auto"
               :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
             >{{ JSON.stringify(playbackEventObject, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Camera Data Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showCameraDataModal"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        @click.self="showCameraDataModal = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50" @click="showCameraDataModal = false" />
+
+        <!-- Modal -->
+        <div
+          class="relative rounded-lg shadow-xl max-h-[80vh] flex flex-col"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+          style="width: 80%"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between p-4 border-b" :class="isDark ? 'border-gray-700' : 'border-gray-200'">
+            <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">{{ cameraModalTitle }}</h3>
+            <div class="flex items-center gap-2">
+              <!-- View buttons -->
+              <div class="flex items-center gap-1">
+                <button
+                  @click="switchCameraModalView('details')"
+                  :disabled="activeCameraModalLoading"
+                  class="px-3 py-1 text-xs font-medium rounded transition-colors focus:outline-none"
+                  :class="cameraModalView === 'details'
+                    ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white')
+                    : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300')"
+                >Details</button>
+                <button
+                  @click="switchCameraModalView('settings')"
+                  :disabled="activeCameraModalLoading"
+                  class="px-3 py-1 text-xs font-medium rounded transition-colors focus:outline-none"
+                  :class="cameraModalView === 'settings'
+                    ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white')
+                    : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300')"
+                >Settings</button>
+                <button
+                  @click="switchCameraModalView('bridge')"
+                  :disabled="activeCameraModalLoading"
+                  class="px-3 py-1 text-xs font-medium rounded transition-colors focus:outline-none"
+                  :class="cameraModalView === 'bridge'
+                    ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white')
+                    : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-600 hover:bg-gray-300')"
+                >Bridge</button>
+              </div>
+              <!-- Copy Button -->
+              <button
+                @click="copyCameraDataToClipboard"
+                :disabled="activeCameraModalLoading"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  cameraDataCopied ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600')
+                ]"
+                :title="cameraDataCopied ? 'Copied!' : 'Copy to clipboard'"
+              >
+                <!-- Checkmark icon when copied -->
+                <svg v-if="cameraDataCopied" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <!-- Copy icon -->
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <!-- Close Button -->
+              <button
+                @click="showCameraDataModal = false"
+                class="p-1 rounded transition-colors"
+                :class="[
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100',
+                  isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-600'
+                ]"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Include parameter values -->
+          <div class="px-4 pt-3 pb-1">
+            <div class="text-xs mb-1" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Include Parameters:</div>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="value in activeCameraModalIncludeValues"
+                :key="value"
+                class="px-2 py-0.5 text-xs rounded-full font-mono"
+                :class="isDark ? 'bg-teal-900/50 text-teal-300' : 'bg-teal-100 text-teal-700'"
+              >{{ value }}</span>
+            </div>
+          </div>
+
+          <!-- Content -->
+          <div class="p-4 overflow-auto flex-1">
+            <!-- Loading state -->
+            <div v-if="activeCameraModalLoading" class="flex items-center justify-center py-12">
+              <div class="flex items-center gap-3">
+                <svg class="animate-spin w-5 h-5" :class="isDark ? 'text-teal-400' : 'text-teal-600'" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span class="text-sm" :class="isDark ? 'text-gray-400' : 'text-gray-500'">Loading camera {{ cameraModalView }}...</span>
+              </div>
+            </div>
+            <!-- JSON response -->
+            <pre
+              v-else-if="activeCameraModalData"
+              class="text-xs font-mono p-4 rounded overflow-auto"
+              :class="isDark ? 'bg-gray-900 text-gray-300' : 'bg-gray-100 text-gray-800'"
+            >{{ JSON.stringify(activeCameraModalData, null, 2) }}</pre>
           </div>
         </div>
       </div>
