@@ -61,7 +61,7 @@ async function performLogin(page: Page, username: string, password: string): Pro
 
   // Check if we're on the EEN OAuth page or already redirected back
   const currentUrl = page.url()
-  if (currentUrl.includes('eagleeyenetworks.com')) {
+  if (new URL(currentUrl).hostname.endsWith('eagleeyenetworks.com')) {
     // Need to complete OAuth login form
     const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
     await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })

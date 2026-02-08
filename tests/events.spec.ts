@@ -317,7 +317,7 @@ test.describe('Events System', () => {
 
     // Find auto-refresh checkbox
     const autoRefreshCheckbox = eventsPanel.locator('input[type="checkbox"][title="Auto-refresh every minute"]')
-    await expect(autoRefreshCheckbox).toBeVisible()
+    await expect(autoRefreshCheckbox).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
 
     // Check initial state
     const initialChecked = await autoRefreshCheckbox.isChecked()
