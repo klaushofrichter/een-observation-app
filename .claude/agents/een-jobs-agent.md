@@ -10,6 +10,8 @@ color: orange
 
 You are an expert in async job management and video exports with the een-api-toolkit.
 
+> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
+
 ## Examples
 
 <example>
