@@ -259,7 +259,12 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 3. **Configure environment variables**
 
-   Create a `.env` file in the project root:
+   Copy `.env.example` to `.env` and update with your credentials:
+   ```bash
+   cp .env.example .env
+   ```
+
+   Then edit `.env` with your actual values:
    ```
    VITE_PROXY_URL=https://your-oauth-proxy.workers.dev
    VITE_EEN_CLIENT_ID=YOUR-CLIENT-ID
@@ -414,6 +419,19 @@ server: {
 ### Router Guard Order
 
 The OAuth callback check must come BEFORE the auth check in the router guard. The EEN IDP redirects to the root path (`/`) with `code` and `state` query parameters.
+
+### Production Build Base Path
+
+The Vite configuration uses a dynamic base path:
+
+```typescript
+base: command === 'build' ? '/een-observation-app/' : '/',
+```
+
+- **Development** (`npm run dev`): Uses root path `/`
+- **Production** (`npm run build`): Uses `/een-observation-app/` for GitHub Pages deployment
+
+If deploying to a different location, update the base path in `vite.config.ts` accordingly.
 
 ## Claude Code Agents
 
