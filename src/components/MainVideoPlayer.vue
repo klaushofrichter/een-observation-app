@@ -158,11 +158,11 @@ function handlePlaybackKeys(event: KeyboardEvent) {
       break
     case 'ArrowRight':
       event.preventDefault()
-      video.currentTime = Math.min(video.currentTime + 10, video.duration)
+      video.currentTime = Math.min(video.currentTime + (event.shiftKey ? 0.5 : 10), video.duration)
       break
     case 'ArrowLeft':
       event.preventDefault()
-      video.currentTime = Math.max(video.currentTime - 10, 0)
+      video.currentTime = Math.max(video.currentTime - (event.shiftKey ? 0.5 : 10), 0)
       break
     case 'Enter':
       event.preventDefault()

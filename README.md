@@ -27,6 +27,8 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
   - `Space` — Toggle play/pause
   - `Left Arrow` — Skip backward 10 seconds
   - `Right Arrow` — Skip forward 10 seconds
+  - `Shift + Left Arrow` — Skip backward 0.5 seconds
+  - `Shift + Right Arrow` — Skip forward 0.5 seconds
   - `Enter` — Seek to event timestamp and pause
 - **Auto-Retry Offline Cameras** - Cameras that are offline are automatically re-checked every 60 seconds; live stream and sidebar previews recover when the camera comes back online
 
