@@ -88,6 +88,7 @@ router.beforeEach((to, _from, next) => {
       sessionStorage.removeItem('een_url_live')
       sessionStorage.removeItem('een_url_filter')
       sessionStorage.removeItem('een_url_dark')
+      sessionStorage.removeItem('een_url_mute')
     }
 
     if (to.query.id) {
@@ -159,6 +160,13 @@ router.beforeEach((to, _from, next) => {
       sessionStorage.setItem('een_url_dark', to.query.dark as string)
     } else {
       sessionStorage.removeItem('een_url_dark')
+    }
+
+    // Store mute (mute)
+    if (to.query.mute !== undefined) {
+      sessionStorage.setItem('een_url_mute', to.query.mute as string)
+    } else {
+      sessionStorage.removeItem('een_url_mute')
     }
   }
 

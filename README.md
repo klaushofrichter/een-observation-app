@@ -104,6 +104,7 @@ The bottom section of the application contains three panels for event management
 
 ### User Interface
 - **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
+- **Sound Notifications** - Audio beep on new SSE events; mute toggle in the top bar with URL parameter persistence
 - **Event/Alert Highlighting** - Active event or alert shows orange border
 - **Visual Camera Selection Feedback** - Selected camera shows thick border
 - **Panel Tooltips** - Hover over panel titles to see descriptions
@@ -111,17 +112,17 @@ The bottom section of the application contains three panels for event management
 
 ## URL Parameters
 
-The application supports deep-linking with URL parameters to restore camera selection, selected camera, event type filters, time range durations, auto-refresh settings, live events toggle, event filter, and dark mode.
+The application supports deep-linking with URL parameters to restore camera selection, selected camera, event type filters, time range durations, auto-refresh settings, live events toggle, event filter, dark mode, and mute state.
 
 ### Full URL Format
 
 ```
-http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>&ed=<duration>&ad=<duration>&er=1&ar=1&live=1&filter=1&dark=1
+http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>&ed=<duration>&ad=<duration>&er=1&ar=1&live=1&filter=1&dark=1&mute=1
 ```
 
 **Example:**
 ```
-http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj&ed=24h&ad=1w&er=1&live=1&dark=1
+http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj&ed=24h&ad=1w&er=1&live=1&dark=1&mute=1
 ```
 
 ### Parameters
@@ -138,6 +139,7 @@ http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nk
 | `live` | Live events SSE feed enabled (`1` = on) | `live=1` |
 | `filter` | Event type filter for alerts enabled (`1` = on) | `filter=1` |
 | `dark` | Dark mode (`1` = on, `0` = off) | `dark=1` |
+| `mute` | Mute sound notifications (`1` = muted) | `mute=1` |
 
 ### Camera Selection (`id` and `selected`)
 
@@ -207,6 +209,13 @@ Controls the application theme:
 - `dark=0` - Enable light mode (explicit)
 
 When `dark=1` is in the URL, dark mode is enabled regardless of the user's previous preference. The parameter is only included in the URL when dark mode is enabled.
+
+### Mute (`mute`)
+
+Controls whether sound notifications are muted:
+- `mute=1` - Mute sound notifications
+
+When unmuted (default), a short audio beep plays on each new SSE event notification. The parameter is only included in the URL when muted.
 
 ### URL Persistence
 
@@ -313,7 +322,8 @@ src/
 │   ├── useEventAge.ts         # Event age formatting
 │   ├── useHlsPlayer.ts        # HLS.js player management
 │   ├── useImageCache.ts       # LRU cache for event thumbnails
-│   ├── useSseNotification.ts  # Toast notifications for SSE events
+│   ├── useMute.ts             # Mute toggle with localStorage persistence
+│   ├── useSseNotification.ts  # Toast notifications for SSE events with sound
 │   └── useVideoExport.ts      # Video export with auto-clipping
 ├── views/
 │   ├── Home.vue               # Main application view
@@ -335,6 +345,7 @@ tests/
 ├── auth.spec.ts               # Authentication and user info modal tests (8)
 ├── cameras.spec.ts            # Camera sidebar, selection, and info tests (11)
 ├── dark-mode.spec.ts          # Dark mode toggle and URL parameter tests (2)
+├── mute.spec.ts               # Mute toggle, URL parameter, and persistence tests (3)
 ├── event-types.spec.ts        # Event type selection and count tests (3)
 ├── events.spec.ts             # Events and alerts panel tests (10)
 ├── url-state.spec.ts          # URL parameter state persistence tests (1)
@@ -343,7 +354,7 @@ tests/
 
 ## Testing
 
-The project includes 38 Playwright E2E tests across 7 spec files:
+The project includes 41 Playwright E2E tests across 8 spec files:
 
 ### Authentication (`auth.spec.ts` — 8 tests)
 - Redirect unauthenticated users to login page
@@ -369,6 +380,11 @@ The project includes 38 Playwright E2E tests across 7 spec files:
 ### Dark Mode (`dark-mode.spec.ts` — 2 tests)
 - Toggle dark mode on/off and verify `dark` class on `<html>`
 - Dark mode URL parameter persistence through OAuth login flow
+
+### Mute (`mute.spec.ts` — 3 tests)
+- Toggle mute on/off and verify icon/title changes
+- Mute URL parameter (`mute=1`) appears when muted, removed when unmuted
+- Mute state persists through OAuth login flow via sessionStorage
 
 ### Event Types (`event-types.spec.ts` — 3 tests)
 - Toggle individual event types on/off with URL `events` parameter update
