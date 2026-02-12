@@ -46,6 +46,8 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useVideoExport()` — Export job lifecycle with 10-min auto-clipping
 - `useImageCache()` — LRU cache (250 items) for event thumbnails, deduplicates in-flight requests
 - `useDarkMode()` — Reactive dark mode via `dark` class on `<html>`, persisted to localStorage
+- `useMute()` — Mute toggle persisted to localStorage, with sessionStorage through OAuth flow
+- `useSseNotification()` — SSE event notification banner with Web Audio API beep sound
 - `useHlsPlayer()` — HLS.js player setup and teardown
 
 ### URL State
