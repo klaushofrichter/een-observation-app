@@ -12,7 +12,7 @@ Vue 3 single-page application for Eagle Eye Networks camera monitoring. Uses the
 |---------|-------------|
 | `npm run dev` | Start dev server at `http://127.0.0.1:3333` (kills existing port 3333 process first) |
 | `npm run build` | Type-check with `vue-tsc --noEmit` then build with Vite |
-| `npm test` | Run all 38 Playwright E2E tests (requires dev server + OAuth proxy) |
+| `npm test` | Run all 41 Playwright E2E tests (requires dev server + OAuth proxy) |
 | `npx playwright test tests/events.spec.ts` | Run a single test file |
 | `npx playwright test -g "should toggle dark mode"` | Run a single test by name |
 | `npx playwright test --ui` | Interactive Playwright UI |
@@ -46,10 +46,12 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useVideoExport()` — Export job lifecycle with 10-min auto-clipping
 - `useImageCache()` — LRU cache (250 items) for event thumbnails, deduplicates in-flight requests
 - `useDarkMode()` — Reactive dark mode via `dark` class on `<html>`, persisted to localStorage
+- `useMute()` — Mute toggle persisted to localStorage, with sessionStorage through OAuth flow
+- `useSseNotification()` — SSE event notification banner with Web Audio API beep sound
 - `useHlsPlayer()` — HLS.js player setup and teardown
 
 ### URL State
-All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
+All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
 
 ### Dark Mode
 Toggles `dark` class on `<html>` element. Tailwind CSS scopes dark styles. Persists via localStorage (`een_dark_mode`) and sessionStorage through OAuth flow. URL param `dark=1` overrides stored preference.

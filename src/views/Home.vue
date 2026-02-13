@@ -12,8 +12,9 @@ import AlertsPanel from '../components/AlertsPanel.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
 import { eventTypesToHashString } from '@/utils/eventTypeHash'
 
-// Inject dark mode state
+// Inject dark mode and mute state
 const isDark = inject<Ref<boolean>>('isDark', ref(false))
+const isMuted = inject<Ref<boolean>>('isMuted', ref(false))
 
 interface UserProfile {
   id: string
@@ -241,6 +242,11 @@ function updateUrl() {
     newQuery.dark = '1'
   }
 
+  // Add mute parameter (only if muted)
+  if (isMuted.value) {
+    newQuery.mute = '1'
+  }
+
   // Only update if different to avoid unnecessary history entries
   const currentId = route.query.id as string | undefined
   const currentSelected = route.query.selected as string | undefined
@@ -252,7 +258,8 @@ function updateUrl() {
   const currentLive = route.query.live as string | undefined
   const currentFilter = route.query.filter as string | undefined
   const currentDark = route.query.dark as string | undefined
-  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events || currentEd !== newQuery.ed || currentAd !== newQuery.ad || currentEr !== newQuery.er || currentAr !== newQuery.ar || currentLive !== newQuery.live || currentFilter !== newQuery.filter || currentDark !== newQuery.dark) {
+  const currentMute = route.query.mute as string | undefined
+  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events || currentEd !== newQuery.ed || currentAd !== newQuery.ad || currentEr !== newQuery.er || currentAr !== newQuery.ar || currentLive !== newQuery.live || currentFilter !== newQuery.filter || currentDark !== newQuery.dark || currentMute !== newQuery.mute) {
     router.replace({ query: newQuery })
   }
 }
@@ -412,8 +419,12 @@ onMounted(async () => {
   loading.value = false
 })
 
-// Watch for dark mode changes and update URL
+// Watch for dark mode and mute changes and update URL
 watch(isDark, () => {
+  updateUrl()
+})
+
+watch(isMuted, () => {
   updateUrl()
 })
 </script>
