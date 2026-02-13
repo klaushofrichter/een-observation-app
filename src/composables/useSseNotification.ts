@@ -15,10 +15,10 @@ const FADE_DURATION = 1000 // 1 second fade
 // Play sonar ping notification sound
 let notificationAudio: HTMLAudioElement | null = null
 
-function playNotificationSound() {
+export function playNotificationSound() {
   try {
     if (!notificationAudio) {
-      notificationAudio = new Audio(`${import.meta.env.BASE_URL}sounds/sonar-ping.wav`)
+      notificationAudio = new Audio(`${import.meta.env.BASE_URL}sounds/ping.mp3`)
     }
     notificationAudio.currentTime = 0
     notificationAudio.volume = 0.5

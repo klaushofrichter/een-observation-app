@@ -188,8 +188,8 @@ const currentEventsAutoRefresh = ref<boolean>(false)
 const currentAlertsAutoRefresh = ref<boolean>(false)
 
 // Current live feed and event filter values for URL
-const currentLiveFeed = ref<boolean>(false)
-const currentEventFilter = ref<boolean>(false)
+const currentLiveFeed = ref<boolean>(initialLiveFeed.value)
+const currentEventFilter = ref<boolean>(initialEventFilter.value)
 
 // Update URL with visible cameras, selected camera, event types, and durations
 function updateUrl() {
