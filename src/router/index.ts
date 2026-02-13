@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from 'een-api-toolkit'
+import { clearUrlSessionStorage } from '@/utils/clearUrlSessionStorage'
 import Home from '../views/Home.vue'
 import Login from '../views/Login.vue'
 import Callback from '../views/Callback.vue'
@@ -78,17 +79,7 @@ router.beforeEach((to, _from, next) => {
   if (to.path === '/') {
     // When navigating with no URL parameters, clear all stored URL parameters
     if (Object.keys(to.query).length === 0) {
-      sessionStorage.removeItem('een_url_camera_ids')
-      sessionStorage.removeItem('een_url_selected')
-      sessionStorage.removeItem('een_url_events')
-      sessionStorage.removeItem('een_url_ed')
-      sessionStorage.removeItem('een_url_ad')
-      sessionStorage.removeItem('een_url_er')
-      sessionStorage.removeItem('een_url_ar')
-      sessionStorage.removeItem('een_url_live')
-      sessionStorage.removeItem('een_url_filter')
-      sessionStorage.removeItem('een_url_dark')
-      sessionStorage.removeItem('een_url_mute')
+      clearUrlSessionStorage()
     }
 
     if (to.query.id) {

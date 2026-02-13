@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { revokeToken } from 'een-api-toolkit'
+import { clearUrlSessionStorage } from '@/utils/clearUrlSessionStorage'
 
 const router = useRouter()
 const processing = ref(true)
@@ -12,6 +13,9 @@ onMounted(async () => {
   if (result.error) {
     console.warn('Token revocation warning:', result.error.message)
   }
+
+  // Clear URL state from sessionStorage so next login starts fresh
+  clearUrlSessionStorage()
 
   processing.value = false
 

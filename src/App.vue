@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useMute } from '@/composables/useMute'
 import { useVideoExport } from '@/composables/useVideoExport'
-import { useSseNotification } from '@/composables/useSseNotification'
+import { useSseNotification, playNotificationSound } from '@/composables/useSseNotification'
 import ExportStatusModal from '@/components/ExportStatusModal.vue'
 import { version } from '../package.json'
 
@@ -230,7 +230,7 @@ watch(() => authStore.isAuthenticated, loadUser)
 
           <!-- Mute Toggle -->
           <button
-            @click="toggleMute"
+            @click="toggleMute(); isMuted || playNotificationSound()"
             class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
             :title="isMuted ? 'Sound is muted' : 'Sound is on'"
           >
