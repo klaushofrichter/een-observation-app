@@ -12,24 +12,17 @@ let fadeTimeout: ReturnType<typeof setTimeout> | null = null
 const DISPLAY_DURATION = 1000 // 1 second display
 const FADE_DURATION = 1000 // 1 second fade
 
-// Play a short notification beep using Web Audio API
-let audioContext: AudioContext | null = null
+// Play sonar ping notification sound
+let notificationAudio: HTMLAudioElement | null = null
 
 function playNotificationSound() {
   try {
-    if (!audioContext) {
-      audioContext = new AudioContext()
+    if (!notificationAudio) {
+      notificationAudio = new Audio(`${import.meta.env.BASE_URL}sounds/sonar-ping.wav`)
     }
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-    oscillator.frequency.value = 880
-    oscillator.type = 'sine'
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2)
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.2)
+    notificationAudio.currentTime = 0
+    notificationAudio.volume = 0.5
+    notificationAudio.play()
   } catch {
     // Ignore audio errors (e.g., autoplay policy)
   }
