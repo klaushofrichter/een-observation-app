@@ -102,7 +102,10 @@ const bridgeDataLoading = ref(false)
 
 // PTZ state
 const ptzLoading = ref(false)
-const isPtzCapable = computed(() => props.camera.capabilities?.ptz?.capable === true)
+const isPtzCapable = computed(() => {
+  const ptz = props.camera.capabilities?.ptz as { capable?: boolean; fisheye?: boolean } | undefined
+  return ptz?.capable === true && ptz?.fisheye !== true
+})
 const ptzPresets = ref<PtzPreset[]>([])
 const ptzHomePreset = ref<PtzPreset | null>(null)
 const ptzCurrentPosition = ref<PtzPositionResponse | null>(null)
