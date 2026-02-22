@@ -106,7 +106,7 @@ async function fetchCameras(append = false) {
 
   const params: ListCamerasParams = {
     pageSize: 100, // Fetch all cameras for local pagination
-    include: ['status', 'deviceInfo', 'devicePosition', 'deviceAddress']
+    include: ['status', 'deviceInfo', 'devicePosition', 'deviceAddress', 'capabilities']
   }
 
   const result = await getCameras(params)

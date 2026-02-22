@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useAuthStore, getEvent, getCamera, getCameraSettings, getBridge, getDataSchemasForEventType } from 'een-api-toolkit'
-import type { Camera, CameraStatus } from 'een-api-toolkit'
+import { useAuthStore, getEvent, getCamera, getCameraSettings, getBridge, getDataSchemasForEventType, movePtz, getPtzSettings, getPtzPosition } from 'een-api-toolkit'
+import type { Camera, CameraStatus, PtzDirection, PtzPreset, PtzPositionResponse } from 'een-api-toolkit'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
 import { useVideoExport } from '@/composables/useVideoExport'
@@ -99,6 +99,94 @@ const cameraSettingsResponse = ref<Record<string, unknown> | null>(null)
 const cameraSettingsLoading = ref(false)
 const bridgeDataResponse = ref<Record<string, unknown> | null>(null)
 const bridgeDataLoading = ref(false)
+
+// PTZ state
+const ptzLoading = ref(false)
+const isPtzCapable = computed(() => props.camera.capabilities?.ptz?.capable === true)
+const ptzPresets = ref<PtzPreset[]>([])
+const ptzHomePreset = ref<PtzPreset | null>(null)
+const ptzCurrentPosition = ref<PtzPositionResponse | null>(null)
+let ptzPositionInterval: ReturnType<typeof setInterval> | null = null
+
+const PTZ_TOLERANCE = 0.01
+
+const isAtHome = computed(() => {
+  if (!ptzHomePreset.value || !ptzCurrentPosition.value) return false
+  const home = ptzHomePreset.value.position
+  const pos = ptzCurrentPosition.value
+  return Math.abs(home.x - pos.x) <= PTZ_TOLERANCE &&
+         Math.abs(home.y - pos.y) <= PTZ_TOLERANCE &&
+         Math.abs(home.z - pos.z) <= PTZ_TOLERANCE
+})
+
+async function fetchPtzPosition() {
+  if (!isPtzCapable.value) return
+  const { data } = await getPtzPosition(props.camera.id)
+  if (data) ptzCurrentPosition.value = data
+}
+
+function startPtzPositionPolling() {
+  stopPtzPositionPolling()
+  if (!isPtzCapable.value || !ptzHomePreset.value) return
+  fetchPtzPosition()
+  ptzPositionInterval = setInterval(fetchPtzPosition, 5000)
+}
+
+function stopPtzPositionPolling() {
+  if (ptzPositionInterval) {
+    clearInterval(ptzPositionInterval)
+    ptzPositionInterval = null
+  }
+}
+
+async function fetchPtzPresets() {
+  if (!isPtzCapable.value) return
+  const { data } = await getPtzSettings(props.camera.id)
+  ptzPresets.value = data?.presets ?? []
+  const homeName = data?.homePreset
+  ptzHomePreset.value = homeName ? (ptzPresets.value.find(p => p.name === homeName) ?? null) : null
+  if (ptzHomePreset.value) {
+    startPtzPositionPolling()
+  } else {
+    stopPtzPositionPolling()
+  }
+}
+
+async function handlePtzMove(direction: PtzDirection[]) {
+  if (ptzLoading.value) return
+  ptzLoading.value = true
+  try {
+    await movePtz(props.camera.id, { moveType: 'direction', direction, stepSize: 'medium' })
+  } catch (err) {
+    console.error('PTZ move failed:', err)
+  } finally {
+    ptzLoading.value = false
+    fetchPtzPosition()
+  }
+}
+
+async function handlePtzPreset(preset: PtzPreset) {
+  if (ptzLoading.value) return
+  ptzLoading.value = true
+  try {
+    await movePtz(props.camera.id, {
+      moveType: 'position',
+      x: preset.position.x,
+      y: preset.position.y,
+      z: preset.position.z
+    })
+  } catch (err) {
+    console.error('PTZ preset move failed:', err)
+  } finally {
+    ptzLoading.value = false
+    fetchPtzPosition()
+  }
+}
+
+async function handlePtzHome() {
+  if (!ptzHomePreset.value) return
+  await handlePtzPreset(ptzHomePreset.value)
+}
 
 // All valid include values for getCameraSettings
 const CAMERA_SETTINGS_INCLUDE_VALUES = ['schema', 'proposedValues'] as const
@@ -758,6 +846,10 @@ async function initializeLiveVideo() {
 watch(() => props.camera.id, async (newId, oldId) => {
   if (newId !== oldId) {
     stopRetryTimer()
+    stopPtzPositionPolling()
+    ptzPresets.value = []
+    ptzHomePreset.value = null
+    ptzCurrentPosition.value = null
     // Stop HLS if playing
     hlsPlayer.resetVideo()
     // Small delay to ensure clean transition
@@ -765,6 +857,7 @@ watch(() => props.camera.id, async (newId, oldId) => {
     if (isLiveMode.value) {
       initializeLiveVideo()
     }
+    fetchPtzPresets()
   }
 })
 
@@ -794,11 +887,13 @@ onMounted(() => {
   if (isLiveMode.value) {
     initializeLiveVideo()
   }
+  fetchPtzPresets()
 })
 
 onUnmounted(() => {
   isMounted.value = false
   stopRetryTimer()
+  stopPtzPositionPolling()
   stopLivePlayer()
   hlsPlayer.destroyHls()
   document.removeEventListener('keydown', handleEscKey)
@@ -1042,6 +1137,87 @@ onUnmounted(() => {
         <div v-if="camera.bridgeId" class="flex items-baseline gap-2">
           <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide whitespace-nowrap">Bridge ID:</label>
           <p :class="isDark ? 'text-white' : 'text-gray-800'" class="font-mono text-xs break-all">{{ camera.bridgeId }}</p>
+        </div>
+
+        <!-- PTZ Controls (shown for PTZ-capable cameras in live mode while streaming) -->
+        <div v-if="isPtzCapable && isLiveMode && isStreaming">
+          <div class="flex items-center justify-center gap-6">
+            <!-- D-pad -->
+            <div class="flex flex-col items-center">
+              <button
+                :disabled="ptzLoading"
+                @click="handlePtzMove(['up'])"
+                :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                class="w-9 h-9 m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                title="Pan Up"
+              >&#9650;</button>
+              <div class="flex items-center">
+                <button
+                  :disabled="ptzLoading"
+                  @click="handlePtzMove(['left'])"
+                  :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                  class="w-9 h-9 m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Pan Left"
+                >&#9664;</button>
+                <button
+                  v-if="ptzHomePreset"
+                  :disabled="ptzLoading"
+                  @click="handlePtzHome"
+                  :class="[isAtHome ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                  class="w-9 h-9 m-0.5 rounded-md flex items-center justify-center transition-colors"
+                  :title="isAtHome ? 'At home position' : 'Move to home position'"
+                ><svg class="w-4.5 h-4.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg></button>
+                <div v-else class="w-9 h-9 m-0.5"></div>
+                <button
+                  :disabled="ptzLoading"
+                  @click="handlePtzMove(['right'])"
+                  :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                  class="w-9 h-9 m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                  title="Pan Right"
+                >&#9654;</button>
+              </div>
+              <button
+                :disabled="ptzLoading"
+                @click="handlePtzMove(['down'])"
+                :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                class="w-9 h-9 m-0.5 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                title="Pan Down"
+              >&#9660;</button>
+            </div>
+            <!-- Zoom controls -->
+            <div class="flex flex-col gap-2">
+              <button
+                :disabled="ptzLoading"
+                @click="handlePtzMove(['in'])"
+                :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                class="w-9 h-9 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                title="Zoom In"
+              >+</button>
+              <button
+                :disabled="ptzLoading"
+                @click="handlePtzMove(['out'])"
+                :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+                class="w-9 h-9 rounded-md flex items-center justify-center text-sm font-bold transition-colors"
+                title="Zoom Out"
+              >-</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PTZ Presets (shown when PTZ-capable, live, streaming, and presets exist) -->
+        <div v-if="isPtzCapable && isLiveMode && isStreaming && ptzPresets.length > 0" class="flex items-start gap-2">
+          <label :class="isDark ? 'text-gray-400' : 'text-gray-500'" class="text-xs uppercase tracking-wide whitespace-nowrap pt-0.5">Presets:</label>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="preset in ptzPresets"
+              :key="preset.name"
+              :disabled="ptzLoading"
+              @click="handlePtzPreset(preset)"
+              :class="[isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700', ptzLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer']"
+              class="px-2 py-0.5 rounded text-xs transition-colors"
+              :title="`Move to ${preset.name}`"
+            >{{ preset.name }}</button>
+          </div>
         </div>
 
         <!-- Event/Alert Timestamp (shown for recorded playback) -->
