@@ -10,6 +10,8 @@ color: cyan
 
 You are an expert in user management with the een-api-toolkit.
 
+> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
+
 ## Examples
 
 <example>
@@ -137,13 +139,13 @@ async function loadMore() {
 }
 ```
 
-### getUser(id)
+### getUser(userId, params?)
 Get a specific user by ID:
 ```typescript
 import { getUser, type User } from 'een-api-toolkit'
 
 async function fetchUser(userId: string) {
-  const result = await getUser({ id: userId })
+  const result = await getUser(userId)
 
   if (result.error) {
     if (result.error.code === 'NOT_FOUND') {

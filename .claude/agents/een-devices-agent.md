@@ -10,8 +10,6 @@ color: orange
 
 You are an expert in camera and bridge management with the een-api-toolkit.
 
-> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
-
 ## Examples
 
 <example>
@@ -48,9 +46,10 @@ assistant: "I'll use the een-devices-agent to help fetch bridges with getBridges
 1. List and filter cameras with getCameras()
 2. List and filter bridges with getBridges()
 3. Get device details with getCamera() / getBridge()
-4. Implement status filtering (online, offline, streaming, etc.)
-5. Implement tag-based filtering
-6. Full-text search with q parameter
+4. Get camera operational settings with getCameraSettings()
+5. Implement status filtering (online, offline, streaming, etc.)
+6. Implement tag-based filtering
+7. Full-text search with q parameter
 
 ## Key Types
 
@@ -105,6 +104,32 @@ type BridgeStatus =
   | 'initializing'
 ```
 
+### CameraSettings
+```typescript
+interface CameraSettings {
+  data: CameraSettingsData
+  schema?: object         // When include contains 'schema'
+  proposedValues?: object // When include contains 'proposedValues'
+}
+
+interface CameraSettingsData {
+  timeZone?: string
+  rtsp?: CameraRtspConnectionSettings
+  credentials?: { username?: string; password?: string }
+  retention?: CameraSettingsRetention
+  audio?: CameraSettingsAudio
+  previewVideo?: CameraSettingsPreviewVideo
+  mainVideo?: CameraSettingsMainVideo
+  analog?: CameraSettingsAnalog
+  operatingSettings?: CameraSettingsOperating
+  talkdown?: CameraSettingsTalkdown
+}
+
+interface GetCameraSettingsParams {
+  include?: ('schema' | 'proposedValues')[]
+}
+```
+
 ### ListCamerasParams
 ```typescript
 interface ListCamerasParams {
@@ -116,7 +141,7 @@ interface ListCamerasParams {
   status__ne?: CameraStatus      // Exclude this status
   tags__contains?: string[]      // Must have ALL these tags
   tags__any?: string[]           // Must have ANY of these tags
-  bridgeId__eq?: string          // Cameras on specific bridge
+  bridgeId__in?: string[]        // Cameras on specific bridge(s)
   q?: string                     // Full-text search
 }
 ```
@@ -189,6 +214,26 @@ async function fetchCamera(cameraId: string) {
     return null
   }
 
+  return result.data
+}
+```
+
+### getCameraSettings(cameraId, params?)
+Get operational settings for a camera:
+```typescript
+import { getCameraSettings, type CameraSettings } from 'een-api-toolkit'
+
+async function fetchSettings(cameraId: string) {
+  const result = await getCameraSettings(cameraId, {
+    include: ['schema', 'proposedValues']
+  })
+
+  if (result.error) {
+    console.error('Failed to get settings:', result.error.message)
+    return null
+  }
+
+  console.log('Retention:', result.data.data.retention?.cloudDays, 'days')
   return result.data
 }
 ```
@@ -357,6 +402,27 @@ if (isCameraOnline(camera.status)) {
   // Show "Camera offline" message
 }
 ```
+
+## PTZ Camera Support
+
+When the user asks about PTZ (Pan/Tilt/Zoom) camera controls, presets, or camera movement,
+**delegate to the `een-ptz-agent`** which has specialized knowledge of:
+- `getPtzPosition()`, `movePtz()`, `getPtzSettings()`, `updatePtzSettings()`
+- Direction pad controls, click-to-center, preset management
+- PTZ automation modes (homeReturn, tour, manualOnly)
+
+To check if a camera supports PTZ, use `getCamera(id, { include: ['capabilities'] })` and check
+the nested `capabilities.ptz.capable` field:
+
+```typescript
+const result = await getCamera(cameraId, { include: ['capabilities'] })
+const capabilities = result.data?.capabilities as { ptz?: { capable?: boolean } } | undefined
+if (capabilities?.ptz?.capable) {
+  // This camera supports PTZ - use een-ptz-agent for PTZ-specific tasks
+}
+```
+
+**IMPORTANT:** The capability is at `capabilities.ptz.capable` (nested object), NOT `capabilities.ptzCapable`.
 
 ## Constraints
 - Always check authentication before API calls
