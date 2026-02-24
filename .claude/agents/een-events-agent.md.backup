@@ -10,6 +10,8 @@ color: purple
 
 You are an expert in events and real-time streaming with the een-api-toolkit.
 
+> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
+
 ## Examples
 
 <example>
@@ -72,10 +74,13 @@ interface Event {
 
 type EventType =
   | 'een.motionDetectionEvent.v1'
-  | 'een.objectDetectionEvent.v1'
-  | 'een.lineCrossingEvent.v1'
+  | 'een.personDetectionEvent.v1'
+  | 'een.vehicleDetectionEvent.v1'
+  | 'een.objectLineCrossEvent.v1'
   | 'een.tamperDetectionEvent.v1'
-  // ... other event types
+  | 'een.loiterDetectionEvent.v1'
+  | 'een.weaponDetectionEvent.v1'
+  // ... and many more (see AI-EVENT-DATA-SCHEMAS.md)
 ```
 
 ### ListEventsParams
@@ -313,6 +318,7 @@ import { listAlerts, type Alert, type ListAlertsParams } from 'een-api-toolkit'
 async function fetchAlerts() {
   const result = await listAlerts({
     status__in: ['active', 'acknowledged'],
+    include: ['data', 'actions', 'dataSchemas', 'description'],
     pageSize: 20
   })
 
@@ -321,6 +327,13 @@ async function fetchAlerts() {
   }
 }
 ```
+
+#### Alert Include Parameter
+The `include` parameter controls what additional data is returned with each alert:
+- `'data'` - Include alert data objects (varies by alert type)
+- `'actions'` - Include actions executed for this alert
+- `'dataSchemas'` - Include list of data schema types
+- `'description'` - Include human-readable description
 
 ### Alert Priority
 Alert priority is an integer value ranging from **0 to 10**:

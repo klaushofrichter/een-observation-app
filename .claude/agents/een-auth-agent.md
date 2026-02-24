@@ -10,8 +10,6 @@ color: blue
 
 You are an expert in OAuth authentication with the een-api-toolkit.
 
-> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
-
 ## Examples
 
 <example>
@@ -121,7 +119,7 @@ const authStore = useAuthStore()
 authStore.token          // Current access token
 authStore.baseUrl        // EEN API base URL (region-specific)
 authStore.isAuthenticated // Computed: true if valid token exists
-authStore.isExpired      // Computed: true if token expired
+authStore.isTokenExpired // Computed: true if token expired
 ```
 
 ### authStore.initialize() - Session Restoration (CRITICAL)
@@ -256,21 +254,23 @@ The EEN OAuth login page uses a **two-step authentication flow**:
 1. **Step 1 - Email**: User enters email address and clicks "Next"
 2. **Step 2 - Password**: Password field appears, user enters password and clicks "Sign in"
 
-This is important for Playwright tests - you cannot fill both fields at once:
+This is important for Playwright tests - you cannot fill both fields at once.
+
+**BEST PRACTICE:** Use `getByPlaceholder()` selectors — they are the most reliable across EEN login page versions:
 
 ```typescript
 // Playwright test example for EEN two-step login
 // Step 1: Enter email and click Next
-const emailInput = page.locator('input[type="email"], input[type="text"]').first()
-await emailInput.fill(TEST_USER)
+await page.getByPlaceholder(/email/i).fill(TEST_USER)
 await page.getByRole('button', { name: /next/i }).click()
 
 // Step 2: Wait for password field and fill it
-const passwordInput = page.locator('input[type="password"]')
-await passwordInput.waitFor({ state: 'visible', timeout: 10000 })
-await passwordInput.fill(TEST_PASSWORD)
-await page.getByRole('button', { name: /sign in/i }).click()
+await page.getByPlaceholder(/password/i).fill(TEST_PASSWORD, { timeout: 15000 })
+await page.getByRole('button', { name: /sign in|next/i }).click()
 ```
+
+**NOTE:** The `#authentication--input__email` and `#authentication--input__password` ID selectors
+may not always be present. The `getByPlaceholder()` approach is more reliable.
 
 ## Playwright E2E Test Patterns
 
@@ -285,27 +285,22 @@ Best practices for auth testing:
 ```typescript
 // Complete performLogin helper function
 async function performLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/login')
-  await page.click('button:has-text("Login with Eagle Eye Networks")')
+  await page.goto('/')
+  await page.getByRole('link', { name: 'Login' }).click()
 
   // Wait for EEN OAuth page
-  await page.waitForURL(/.*eagleeyenetworks.com.*/, { timeout: 30000 })
+  await page.waitForURL(/auth\.eagleeyenetworks\.com|id\.eagleeyenetworks\.com/, { timeout: 15000 })
 
-  // Step 1: Email
-  const emailInput = page.locator('#authentication--input__email, input[type="email"]').first()
-  await emailInput.waitFor({ state: 'visible', timeout: 15000 })
-  await emailInput.fill(username)
-  await page.getByRole('button', { name: 'Next' }).click()
+  // Step 1: Email (use getByPlaceholder - most reliable selector)
+  await page.getByPlaceholder(/email/i).fill(username)
+  await page.getByRole('button', { name: /next/i }).click()
 
-  // Step 2: Password
-  const passwordInput = page.locator('#authentication--input__password, input[type="password"]')
-  await passwordInput.waitFor({ state: 'visible', timeout: 10000 })
-  await passwordInput.fill(password)
-  await page.locator('#next, button:has-text("Sign in")').first().click()
+  // Step 2: Password (appears after Next is clicked)
+  await page.getByPlaceholder(/password/i).fill(password, { timeout: 15000 })
+  await page.getByRole('button', { name: /sign in|next/i }).click()
 
   // Wait for redirect back to app
-  await page.waitForURL(/127\.0\.0\.1:3333/, { timeout: 60000 })
-  await page.waitForURL('**/', { timeout: 60000 })
+  await page.waitForURL('http://127.0.0.1:3333/**', { timeout: 30000 })
 }
 
 // Clear auth state helper

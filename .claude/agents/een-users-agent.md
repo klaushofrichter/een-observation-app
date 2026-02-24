@@ -10,8 +10,6 @@ color: cyan
 
 You are an expert in user management with the een-api-toolkit.
 
-> **Note:** References to `docs/` and `examples/` directories in this file point to resources in the `een-api-toolkit` npm package (found in `node_modules/een-api-toolkit/`), not in this project's root directory.
-
 ## Examples
 
 <example>
@@ -56,8 +54,8 @@ assistant: "I'll use the een-users-agent to diagnose the user lookup issue and i
 ```typescript
 interface User {
   id: string
-  firstName?: string
-  lastName?: string
+  firstName: string
+  lastName: string
   email: string
   isActive?: boolean
   permissions?: string[]
@@ -73,9 +71,9 @@ interface UserProfile {
   firstName: string
   lastName: string
   email: string
-  accountId: string
-  permissions: string[]
-  // ... profile-specific fields
+  accountId?: string
+  timeZone?: string
+  language?: string
 }
 ```
 
