@@ -10,6 +10,7 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Camera Sidebar** - Paginated list of cameras with live MJPEG preview thumbnails
 - **Layout Support** - Filter cameras by predefined layouts or view all cameras
 - **URL Camera Selection** - Deep-link to specific cameras via URL parameters (see below)
+- **Camera Selection Modal** - Click the clipboard icon next to the camera counter/pagination to open a modal listing all account cameras; select up to 10 cameras and navigate to a URL showing only those cameras as "URL-cameras"
 
 ### Video Playback
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
@@ -315,6 +316,7 @@ src/
 │   ├── EventsPanel.vue         # Events panel with thumbnails (historic + live)
 │   ├── AlertsPanel.vue        # Alerts panel with notifications and priority badges
 │   ├── BoundingBoxOverlay.vue  # Bounding box overlay for object detection
+│   ├── CameraSelectModal.vue   # Camera selection modal (up to 10 cameras)
 │   └── ExportStatusModal.vue  # Video export progress modal
 ├── composables/
 │   ├── useBoundingBoxes.ts    # Bounding box extraction from event data
@@ -343,6 +345,7 @@ src/
 
 tests/
 ├── auth.spec.ts               # Authentication and user info modal tests (8)
+├── camera-select.spec.ts      # Camera selection modal tests (4)
 ├── cameras.spec.ts            # Camera sidebar, selection, and info tests (11)
 ├── dark-mode.spec.ts          # Dark mode toggle and URL parameter tests (2)
 ├── mute.spec.ts               # Mute toggle, URL parameter, and persistence tests (3)
@@ -354,7 +357,7 @@ tests/
 
 ## Testing
 
-The project includes 41 Playwright E2E tests across 8 spec files:
+The project includes 45 Playwright E2E tests across 9 spec files:
 
 ### Authentication (`auth.spec.ts` — 8 tests)
 - Redirect unauthenticated users to login page
@@ -363,6 +366,12 @@ The project includes 41 Playwright E2E tests across 8 spec files:
 - Show authenticated user info
 - Logout successfully
 - Open, close (ESC), and close (backdrop click) user info modal
+
+### Camera Selection Modal (`camera-select.spec.ts` — 4 tests)
+- Display camera select button in sidebar
+- Open modal and display all cameras with checkboxes
+- Select cameras and navigate to URL with selected IDs
+- Close modal via Cancel, ESC, and backdrop click
 
 ### Camera Selection (`cameras.spec.ts` — 11 tests)
 - Display camera sidebar with cameras
