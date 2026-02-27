@@ -1,6 +1,6 @@
 {
   "name": "een-camera-observation-app",
-  "version": "1.0.42",
+  "version": "1.0.43",
   "type": "module",
   "scripts": {
     "dev": "lsof -ti:3333 2>/dev/null | xargs kill -9 2>/dev/null; vite",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@een/live-video-web-sdk": "^1.10.2",
     "@vitejs/plugin-vue": "^6.0.3",
-    "een-api-toolkit": "^0.3.101",
+    "een-api-toolkit": "^0.3.103",
     "hls.js": "^1.6.15",
     "pinia": "^3.0.4",
     "typescript": "^5.9.3",
