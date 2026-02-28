@@ -11,6 +11,9 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
 - **Layout Support** - Filter cameras by predefined layouts or view all cameras
 - **URL Camera Selection** - Deep-link to specific cameras via URL parameters (see below)
 - **Camera Selection Modal** - Click the clipboard icon next to the camera counter/pagination to open a modal listing all account cameras; select up to 10 cameras and navigate to a URL showing only those cameras as "URL-cameras"
+  - **Online/Offline Indicator** - Each camera card shows a green (online) or red (offline) status dot next to the camera ID
+  - **Hover Preview** - Hover over a camera card to see a live preview image popup (online cameras only); images are cached for instant re-display
+  - **Copy URL** - Link icon button in the modal header copies the selection URL to the clipboard
 
 ### Video Playback
 - **Live HD Video** - Full-quality live streaming using the EEN Live Video SDK
@@ -32,6 +35,7 @@ A Vue 3 single-page application for Eagle Eye Networks camera monitoring with li
   - `Shift + Right Arrow` — Skip forward 0.5 seconds
   - `Enter` — Seek to event timestamp and pause
 - **Auto-Retry Offline Cameras** - Cameras that are offline are automatically re-checked every 60 seconds; live stream and sidebar previews recover when the camera comes back online
+- **PTZ Controls** - Pan-Tilt-Zoom controls for capable cameras with directional buttons, presets, and home position indicator
 
 ### Video Export & Download
 - **Download Button** - Export the currently playing video clip as an MP4 file
@@ -104,6 +108,8 @@ The bottom section of the application contains three panels for event management
 - **Token Auto-Refresh** - Automatic token renewal before expiration
 
 ### User Interface
+- **Fullscreen Mode** - Click the app eye icon in the top-left corner to toggle browser fullscreen; press Escape to exit
+- **Help Button** - Question mark icon in the top bar opens the README documentation on GitHub
 - **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
 - **Sound Notifications** - Audio beep on new SSE events; mute toggle in the top bar with URL parameter persistence
 - **Event/Alert Highlighting** - Active event or alert shows orange border
@@ -242,11 +248,12 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 - **Authentication:** `initEenToolkit`, `useAuthStore`, `getAuthUrl`, `handleAuthCallback`, `revokeToken`
 - **User:** `getCurrentUser`
-- **Devices:** `getCameras`, `getCamera`, `getCameraSettings`, `getBridge`, `getLayouts`
-- **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `formatTimestamp`
+- **Devices:** `getCameras`, `getCamera`, `getCameraSettings`, `getCameraStatusString`, `getBridge`, `getLayouts`
+- **Media:** `listFeeds`, `initMediaSession`, `listMedia`, `getRecordedImage`, `getLiveImage`, `formatTimestamp`
 - **Events:** `listEvents`, `getEvent`, `listEventTypes`, `listEventFieldValues`, `getDataSchemasForEventType`, `getIncludeParameterForEventTypes`, `createEventSubscription`, `connectToEventSubscription`, `deleteEventSubscription`
 - **Alerts:** `listAlerts`, `listEventAlertConditionRules`, `listAlertActions`
 - **Notifications:** `listNotifications`
+- **PTZ:** `movePtz`, `getPtzSettings`, `getPtzPosition`
 - **Jobs/Export:** `createExportJob`, `getJob`, `downloadFile`, `deleteJob`
 
 ## Prerequisites
@@ -337,6 +344,7 @@ src/
 ├── assets/
 │   └── main.css               # Tailwind CSS styles
 ├── utils/
+│   ├── clearUrlSessionStorage.ts # Clear URL params from sessionStorage
 │   └── eventTypeHash.ts       # DJB2 hash for URL event type encoding
 ├── types/
 │   └── een.ts                 # Type re-exports and helper types
@@ -471,8 +479,10 @@ This project includes specialized Claude Code agents for een-api-toolkit develop
 - `een-events-agent` - Events and SSE subscriptions
 - `een-automations-agent` - Alert automation rules and actions
 - `een-jobs-agent` - Async jobs, exports, and file downloads
+- `een-ptz-agent` - PTZ camera controls
 - `een-grouping-agent` - Layouts and camera groupings
 - `een-users-agent` - User management
+- `api-coverage-agent` - API function coverage analysis
 - `test-runner` - E2E and unit test execution
 - `docs-accuracy-reviewer` - Documentation verification against codebase
 

@@ -141,6 +141,9 @@ onMounted(() => {
     setDark(false)
   }
 
+  // Listen for fullscreen changes
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+
   // Check for mute URL parameter (overrides localStorage)
   const urlMute = sessionStorage.getItem('een_url_mute')
   if (urlMute === '1') {
@@ -152,9 +155,25 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
 })
 
 watch(() => authStore.isAuthenticated, loadUser)
+
+// Fullscreen toggle
+const isFullscreen = ref(false)
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen()
+  } else {
+    document.documentElement.requestFullscreen()
+  }
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+}
 </script>
 
 <template>
@@ -176,24 +195,30 @@ watch(() => authStore.isAuthenticated, loadUser)
             {{ sseNotification.message }}
           </div>
         </Transition>
-        <a
-          href="https://github.com/klaushofrichter/een-observation-app"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="flex items-center gap-2 text-xl font-semibold hover:opacity-90"
-        >
-          <!-- Eye icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" class="w-6 h-6">
-            <path d="M16 6C8 6 2 16 2 16s6 10 14 10 14-10 14-10S24 6 16 6z" fill="#60a5fa" stroke="#3b82f6" stroke-width="1"/>
-            <ellipse cx="16" cy="16" rx="7" ry="7" fill="white"/>
-            <circle cx="16" cy="16" r="5" fill="#3b82f6"/>
-            <circle cx="16" cy="16" r="2.5" fill="#1e3a8a"/>
-            <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.8"/>
-          </svg>
+        <div class="flex items-center gap-2 text-xl font-semibold">
+          <!-- Eye icon — fullscreen toggle -->
+          <button
+            @click="toggleFullscreen"
+            class="hover:opacity-80 transition-opacity cursor-pointer"
+            :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" class="w-6 h-6">
+              <path d="M16 6C8 6 2 16 2 16s6 10 14 10 14-10 14-10S24 6 16 6z" fill="#60a5fa" stroke="#3b82f6" stroke-width="1"/>
+              <ellipse cx="16" cy="16" rx="7" ry="7" fill="white"/>
+              <circle cx="16" cy="16" r="5" fill="#3b82f6"/>
+              <circle cx="16" cy="16" r="2.5" fill="#1e3a8a"/>
+              <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.8"/>
+            </svg>
+          </button>
           <span :title="`Powered by een-api-toolkit v${toolkitVersion}`">{{ appName }}</span>
-          <span class="text-xs opacity-70 font-normal">v{{ version }}</span>
-        </a>
-        <div class="flex items-center gap-4 text-sm">
+          <a
+            href="https://github.com/klaushofrichter/een-observation-app"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-xs opacity-70 font-normal hover:opacity-100"
+          >v{{ version }}</a>
+        </div>
+        <div class="flex items-center gap-1.5 text-sm">
           <!-- Export Status Icon (visible when export/download active) -->
           <button
             v-if="exportIsActive"
@@ -262,6 +287,19 @@ watch(() => authStore.isAuthenticated, loadUser)
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </button>
+
+          <!-- Help link -->
+          <a
+            href="https://github.com/klaushofrichter/een-observation-app/blob/production/README.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+            title="Help — open README"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </a>
 
           <template v-if="isAuthenticated && user">
             <button
