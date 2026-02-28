@@ -269,8 +269,7 @@ async function refresh() {
 // Handle camera selection modal confirm
 function handleCameraSelectionConfirm(selectedIds: string[]) {
   showCameraSelectModal.value = false
-  const basePath = window.location.origin + import.meta.env.BASE_URL
-  const url = new URL(basePath)
+  const url = new URL(window.location.href)
   url.searchParams.set('id', selectedIds.join(','))
   window.location.href = url.toString()
 }
@@ -501,7 +500,7 @@ onUnmounted(() => {
     <CameraSelectModal
       :show="showCameraSelectModal"
       :all-cameras="allCameras"
-      :current-url-camera-ids="getVisibleCameraIds()"
+      :current-url-camera-ids="selectedLayoutId === 'url' ? urlCameraIds.filter(id => allCameras.some(c => c.id === id)) : cameras.slice(0, 10).map(c => c.id)"
       @close="showCameraSelectModal = false"
       @confirm="handleCameraSelectionConfirm"
     />
