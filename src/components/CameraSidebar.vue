@@ -500,7 +500,7 @@ onUnmounted(() => {
     <CameraSelectModal
       :show="showCameraSelectModal"
       :all-cameras="allCameras"
-      :current-url-camera-ids="selectedLayoutId === 'url' ? urlCameraIds : cameras.map(c => c.id)"
+      :current-url-camera-ids="selectedLayoutId === 'url' ? urlCameraIds.filter(id => allCameras.some(c => c.id === id)) : cameras.slice(0, 10).map(c => c.id)"
       @close="showCameraSelectModal = false"
       @confirm="handleCameraSelectionConfirm"
     />
