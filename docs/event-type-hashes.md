@@ -39,11 +39,11 @@ export function hashEventType(eventType: string): string {
 | 0gG | Battery Level Update | een.batteryLevelUpdateEvent.v1 |
 | ByH | Counted Object Line Cross | een.countedObjectLineCrossEvent.v1 |
 | zik | Crowd Formation Detection | een.crowdFormationDetectionEvent.v1 |
+| SFJ | Device Cloud Connection Status | een.deviceCloudConnectionStatusUpdateEvent.v1 |
 | 3Cc | Device Creation | een.deviceCreationEvent.v1 |
 | cF7 | Device Deletion | een.deviceDeletionEvent.v1 |
 | yIm | Device I/O | een.deviceIOEvent.v1 |
 | 1pF | Device Operation | een.deviceOperationEvent.v1 |
-| SFJ | Device Cloud Connection Status | een.deviceCloudConnectionStatusUpdateEvent.v1 |
 | wOj | Device Status | een.deviceCloudStatusUpdateEvent.v1 |
 | 5Kd | Device Update | een.deviceUpdateEvent.v1 |
 | GAy | Door Status | een.doorStatusEvent.v1 |
