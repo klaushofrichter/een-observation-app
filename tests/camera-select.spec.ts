@@ -156,8 +156,9 @@ test.describe('Camera Selection Modal', () => {
     // Modal should have "Select Cameras" title
     await expect(modal.locator('h3', { hasText: 'Select Cameras' })).toBeVisible()
 
-    // Should show "Select up to 10 cameras" hint
-    await expect(modal.getByText('Select up to 10 cameras')).toBeVisible()
+    // "Select up to 10 cameras" hint only shown when more than 10 cameras
+    // Test account has 3 cameras, so verify it is NOT shown
+    await expect(modal.getByText('Select up to 10 cameras')).not.toBeVisible()
 
     // Should display camera checkboxes
     const checkboxes = modal.locator('input[type="checkbox"]')
