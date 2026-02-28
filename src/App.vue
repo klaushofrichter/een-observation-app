@@ -7,7 +7,9 @@ import { useMute } from '@/composables/useMute'
 import { useVideoExport } from '@/composables/useVideoExport'
 import { useSseNotification, playNotificationSound } from '@/composables/useSseNotification'
 import ExportStatusModal from '@/components/ExportStatusModal.vue'
-import { version } from '../package.json'
+import { version, dependencies } from '../package.json'
+
+const toolkitVersion = dependencies['een-api-toolkit'].replace(/^\^|~/, '')
 
 interface UserProfile {
   id: string
@@ -188,7 +190,7 @@ watch(() => authStore.isAuthenticated, loadUser)
             <circle cx="16" cy="16" r="2.5" fill="#1e3a8a"/>
             <circle cx="14" cy="14.5" r="1.2" fill="white" opacity="0.8"/>
           </svg>
-          {{ appName }}
+          <span :title="`Powered by een-api-toolkit v${toolkitVersion}`">{{ appName }}</span>
           <span class="text-xs opacity-70 font-normal">v{{ version }}</span>
         </a>
         <div class="flex items-center gap-4 text-sm">

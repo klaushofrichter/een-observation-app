@@ -31,19 +31,23 @@ export function hashEventType(eventType: string): string {
 
 | Hash | Event Name | Event Type |
 |------|------------|------------|
+| oxa | Access Activation | een.accessActivationEvent.v1 |
 | sMI | Account Creation | een.accountCreationEvent.v1 |
 | xDo | Account Deletion | een.accountDeletionEvent.v1 |
 | KYp | Account Update | een.accountUpdateEvent.v1 |
 | 55Y | Animal Detection | een.animalDetectionEvent.v1 |
 | 0gG | Battery Level Update | een.batteryLevelUpdateEvent.v1 |
+| ByH | Counted Object Line Cross | een.countedObjectLineCrossEvent.v1 |
 | zik | Crowd Formation Detection | een.crowdFormationDetectionEvent.v1 |
 | 3Cc | Device Creation | een.deviceCreationEvent.v1 |
 | cF7 | Device Deletion | een.deviceDeletionEvent.v1 |
 | yIm | Device I/O | een.deviceIOEvent.v1 |
 | 1pF | Device Operation | een.deviceOperationEvent.v1 |
+| SFJ | Device Cloud Connection Status | een.deviceCloudConnectionStatusUpdateEvent.v1 |
 | wOj | Device Status | een.deviceCloudStatusUpdateEvent.v1 |
 | 5Kd | Device Update | een.deviceUpdateEvent.v1 |
 | GAy | Door Status | een.doorStatusEvent.v1 |
+| 8GJ | Edge Reported Device Status | een.edgeReportedDeviceStatusEvent.v1 |
 | ztu | EEVA Event | een.eevaQueryEvent.v1 |
 | CoN | Evacuate Protocol | een.evacuateProtocolEvent.v1 |
 | qHj | Face Detection | een.faceDetectionEvent.v1 |
@@ -73,6 +77,7 @@ export function hashEventType(eventType: string): string {
 | plc | Object Removal | een.objectRemovalEvent.v1 |
 | bnl | Panic Button | een.panicButtonEvent.v1 |
 | 6pF | Person Detection | een.personDetectionEvent.v1 |
+| kdV | Person Motion Detection | een.personMotionDetectionEvent.v1 |
 | Akk | Person Tailgate Event | een.personTailgateEvent.v1 |
 | y4g | POS Transaction | een.posTransactionEvent.v1 |
 | itL | PPE Violation | een.ppeViolationEvent.v1 |
@@ -90,7 +95,9 @@ export function hashEventType(eventType: string): string {
 | Cjx | User Update | een.userUpdateEvent.v1 |
 | b99 | Vape Detection | een.vapeDetectionEvent.v1 |
 | X33 | Vehicle Detection | een.vehicleDetectionEvent.v1 |
+| jQD | Vehicle Motion Detection | een.vehicleMotionDetectionEvent.v1 |
 | Ars | Violence Detection | een.violenceDetectionEvent.v1 |
+| 97G | Weapon Detection | een.weaponDetectionEvent.v1 |
 
 ## Usage Example
 

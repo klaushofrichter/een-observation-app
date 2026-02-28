@@ -1,6 +1,6 @@
 /**
  * Utility for creating short URL-safe hashes of event types.
- * Uses 3-character base62 encoding which is unique for all 60+ EEN event types.
+ * Uses 3-character base62 encoding which is unique for all 67 EEN event types.
  */
 
 const CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
