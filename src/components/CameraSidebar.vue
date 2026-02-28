@@ -5,6 +5,7 @@ import { getCameras, getLayouts } from 'een-api-toolkit'
 import type { Camera, ListCamerasParams, EenError, Layout } from 'een-api-toolkit'
 import CameraCard from './CameraCard.vue'
 import ErrorCameraCard from './ErrorCameraCard.vue'
+import CameraSelectModal from './CameraSelectModal.vue'
 
 const props = defineProps<{
   selectedCameraId: string | null
@@ -36,6 +37,9 @@ const loadingLayouts = ref(false)
 // URL camera IDs state
 const urlCameraIds = ref<string[]>([])
 const inaccessibleCameraIds = ref<string[]>([]) // Camera IDs from URL that user cannot access
+
+// Camera selection modal state
+const showCameraSelectModal = ref(false)
 
 // Pagination state - using dynamic calculation based on viewport
 const currentPage = ref(1)
@@ -262,6 +266,15 @@ async function refresh() {
   await fetchCameras()
 }
 
+// Handle camera selection modal confirm
+function handleCameraSelectionConfirm(selectedIds: string[]) {
+  showCameraSelectModal.value = false
+  const basePath = window.location.origin + import.meta.env.BASE_URL
+  const url = new URL(basePath)
+  url.searchParams.set('id', selectedIds.join(','))
+  window.location.href = url.toString()
+}
+
 // Recalculate cards per page on resize
 function handleResize() {
   const newCardsPerPage = calculateCardsPerPage()
@@ -380,29 +393,59 @@ onUnmounted(() => {
         <button
           @click="prevPage"
           :disabled="!hasPrevPage || loading"
-          class="px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200'"
+          title="Previous page"
         >
-          Prev
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
 
         <span :class="isDark ? 'text-gray-400' : 'text-gray-600'">
-          Page {{ currentPage }} of {{ totalPages }}
+          {{ currentPage }} / {{ totalPages }}
         </span>
 
-        <button
-          @click="nextPage"
-          :disabled="!hasNextPage || loading"
-          class="px-2 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200'"
-        >
-          Next
-        </button>
+        <div class="flex items-center gap-1">
+          <button
+            @click="nextPage"
+            :disabled="!hasNextPage || loading"
+            class="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :class="isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200'"
+            title="Next page"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button
+            @click="showCameraSelectModal = true"
+            class="p-1 rounded transition-colors"
+            :class="isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'"
+            title="Select cameras"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Camera count -->
-      <div v-else class="text-xs" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
-        {{ totalSize }} camera{{ totalSize !== 1 ? 's' : '' }}
+      <div v-else class="flex items-center justify-between text-xs">
+        <span :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+          {{ totalSize }} camera{{ totalSize !== 1 ? 's' : '' }}
+        </span>
+        <button
+          @click="showCameraSelectModal = true"
+          class="p-0.5 rounded transition-colors"
+          :class="isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'"
+          title="Select cameras"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -453,6 +496,15 @@ onUnmounted(() => {
         </template>
       </div>
     </div>
+
+    <!-- Camera Selection Modal -->
+    <CameraSelectModal
+      :show="showCameraSelectModal"
+      :all-cameras="allCameras"
+      :current-url-camera-ids="getVisibleCameraIds()"
+      @close="showCameraSelectModal = false"
+      @confirm="handleCameraSelectionConfirm"
+    />
   </div>
 </template>
 
