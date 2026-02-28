@@ -116,6 +116,7 @@ The bottom section of the application contains three panels for event management
 - **Visual Camera Selection Feedback** - Selected camera shows thick border
 - **Panel Tooltips** - Hover over panel titles to see descriptions
 - **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
+- **Mobile Companion QR Code** - *(Experimental)* QR code icon appears in the top bar when a camera is selected; scan with an iPhone to open the companion app with live video for the selected camera. See [docs/mobile-companion.md](docs/mobile-companion.md) for architecture details
 
 ## URL Parameters
 
