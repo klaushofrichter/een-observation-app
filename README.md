@@ -166,7 +166,7 @@ Event types are encoded as 3-character hashes to keep URLs short. The hashes use
 | 55Y | Animal Detection |
 | wOj | Device Status |
 
-See [docs/event-type-hashes.md](docs/event-type-hashes.md) for the complete list of all 60 event types and their hashes, including the hash algorithm source code.
+See [docs/event-type-hashes.md](docs/event-type-hashes.md) for the complete list of all 67 event types and their hashes, including the hash algorithm source code.
 
 ### Time Range Duration (`ed` and `ad`)
 

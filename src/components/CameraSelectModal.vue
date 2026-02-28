@@ -88,7 +88,7 @@ function handleConfirm() {
             <h3 class="text-lg font-semibold" :class="isDark ? 'text-white' : 'text-gray-800'">
               Select Cameras
             </h3>
-            <p class="text-xs mt-0.5" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+            <p v-if="allCameras.length > MAX_CAMERAS" class="text-xs mt-0.5" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
               Select up to {{ MAX_CAMERAS }} cameras
             </p>
           </div>
