@@ -8,6 +8,7 @@ import { useVideoExport } from '@/composables/useVideoExport'
 import { useSseNotification, playNotificationSound } from '@/composables/useSseNotification'
 import ExportStatusModal from '@/components/ExportStatusModal.vue'
 import { version, dependencies } from '../package.json'
+import QRCode from 'qrcode'
 
 const toolkitVersion = dependencies['een-api-toolkit'].replace(/^\^|~/, '')
 
@@ -41,6 +42,36 @@ provide('isDark', isDark)
 provide('isMuted', isMuted)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+// QR code hover popup state
+const showQrPopup = ref(false)
+let qrHoverTimer: ReturnType<typeof setTimeout> | null = null
+const qrDataUrl = ref('')
+const selectedCameraId = computed(() => route.query.selected as string | undefined)
+
+function onQrMouseEnter() {
+  qrHoverTimer = setTimeout(() => {
+    showQrPopup.value = true
+  }, 1000)
+}
+
+function onQrMouseLeave() {
+  if (qrHoverTimer) {
+    clearTimeout(qrHoverTimer)
+    qrHoverTimer = null
+  }
+  showQrPopup.value = false
+}
+
+// Generate QR code when token or selected camera changes
+watch([() => authStore.token, selectedCameraId], async ([token, camId]) => {
+  if (!token || !camId) {
+    qrDataUrl.value = ''
+    return
+  }
+  const url = `eenviewer://view?token=${token}&cam=${camId}`
+  qrDataUrl.value = await QRCode.toDataURL(url, { width: 300, margin: 2 })
+}, { immediate: true })
 
 // User info modal state
 const showUserModal = ref(false)
@@ -156,6 +187,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (qrHoverTimer) clearTimeout(qrHoverTimer)
 })
 
 watch(() => authStore.isAuthenticated, loadUser)
@@ -287,6 +319,41 @@ function onFullscreenChange() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </button>
+
+          <!-- QR Code for Mobile Companion (visible when camera selected) -->
+          <div
+            v-if="isAuthenticated && selectedCameraId"
+            class="relative"
+            @mouseenter="onQrMouseEnter"
+            @mouseleave="onQrMouseLeave"
+          >
+            <div
+              class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-default"
+              title="Hover to show QR code"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="7" y="2" width="10" height="20" rx="2" stroke-width="2" />
+                <line x1="10" y1="18" x2="14" y2="18" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </div>
+            <!-- QR Popup -->
+            <Transition name="fade">
+              <div
+                v-if="showQrPopup && qrDataUrl"
+                class="absolute right-0 top-full mt-2 z-50 rounded-lg shadow-xl p-4 flex flex-col items-center gap-3"
+                :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold whitespace-nowrap" :class="isDark ? 'text-white' : 'text-gray-800'">Mobile Companion</span>
+                  <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-500 text-white">Experimental</span>
+                </div>
+                <img :src="qrDataUrl" alt="QR Code" class="w-[200px] h-[200px] rounded" />
+                <p class="text-xs text-center whitespace-nowrap" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
+                  Scan with iPhone camera to view live video
+                </p>
+              </div>
+            </Transition>
+          </div>
 
           <!-- Help link -->
           <a
