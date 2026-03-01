@@ -9,11 +9,14 @@ The Mobile Companion is a native iOS app that receives an EEN access token and c
 The web app generates a QR code encoding a custom URL scheme:
 
 ```
-eenviewer://view?token=<access_token>&cam=<camera_id>
+eenviewer://view?token=<access_token>&cam=<camera_id>&base=<base_url>&ttl=<epoch_seconds>&events=<hash1,hash2,...>
 ```
 
 - `token` — EEN OAuth access token (from `authStore.token`)
 - `cam` — Camera ESN (from URL `selected` param)
+- `base` — URL-encoded EEN API base URL (from `authStore.baseUrl`)
+- `ttl` — UTC epoch time in seconds when the token expires (from `authStore.tokenExpiration`)
+- `events` — *(optional)* Comma-separated 3-char DJB2 base62 hashes of selected event types (from URL `events` param)
 
 ## Data Flow
 
@@ -21,15 +24,18 @@ eenviewer://view?token=<access_token>&cam=<camera_id>
 Web App                     iOS App
 ───────                     ───────
 1. User selects camera
-2. Clicks QR icon
-3. QR modal shown ──────►  4. Camera scans QR
+2. Clicks QR icon (auto-copies URL)
+3. QR popup shown ─────►  4. Camera scans QR
                             5. Parse eenviewer:// URL
-                            6. Extract token + cam ID
-                            7. Call GET /cameras/{id}
-                               to get baseUrl
+                            6. Extract token, cam, base,
+                               ttl, events
+                            7. Use base URL directly
+                               (no extra API call needed)
                             8. Start live video stream
                             9. Open SSE subscription
-                               for events
+                               for selected event types
+                           10. Show token expiry countdown
+                               from ttl epoch
 ```
 
 ## iOS App Components
@@ -41,8 +47,7 @@ Web App                     iOS App
 
 ### API Client
 - Set `Authorization: Bearer <token>` header
-- Call `GET /api/v3.0/cameras/{cam}` to resolve `baseUrl`
-- Use `baseUrl` for all subsequent media/event API calls
+- Use `base` URL directly for all media/event API calls (no need to resolve via cameras endpoint)
 
 ### Live Video
 - Use EEN media API: `GET /media/liveVideo.flv` or MJPEG endpoint
@@ -55,7 +60,8 @@ Web App                     iOS App
 
 ### Token Lifecycle
 - Token is short-lived (received from web app, no refresh token)
-- Display time-remaining countdown
+- `ttl` parameter provides the absolute expiration time as UTC epoch seconds
+- Display time-remaining countdown computed from `ttl`
 - Prompt user to re-scan QR when token expires
 
 ## Security Considerations

@@ -116,7 +116,7 @@ The bottom section of the application contains three panels for event management
 - **Visual Camera Selection Feedback** - Selected camera shows thick border
 - **Panel Tooltips** - Hover over panel titles to see descriptions
 - **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
-- **Mobile Companion QR Code** - *(Experimental)* QR code icon appears in the top bar when a camera is selected; scan with an iPhone to open the companion app with live video for the selected camera. See [docs/mobile-companion.md](docs/mobile-companion.md) for architecture details
+- **Mobile Companion QR Code** - *(Experimental)* QR code icon appears in the top bar when a camera is selected; hover to preview or click to open popup and auto-copy the URL to clipboard. The QR code URL includes camera ID, auth token, base URL, token expiration epoch (`ttl`), and selected event type hashes. Popup shows token validity countdown (red when < 1 hour) with expiration timestamp. Inline copy icon next to the "Experimental" label for manual copying. See [docs/mobile-companion.md](docs/mobile-companion.md) for architecture details
 
 ## URL Parameters
 
