@@ -12,7 +12,7 @@ Vue 3 single-page application for Eagle Eye Networks camera monitoring. Uses the
 |---------|-------------|
 | `npm run dev` | Start dev server at `http://127.0.0.1:3333` (kills existing port 3333 process first) |
 | `npm run build` | Type-check with `vue-tsc --noEmit` then build with Vite |
-| `npm test` | Run all 45 Playwright E2E tests (requires dev server + OAuth proxy) |
+| `npm test` | Run all 51 Playwright E2E tests (requires dev server + OAuth proxy) |
 | `npx playwright test tests/events.spec.ts` | Run a single test file |
 | `npx playwright test -g "should toggle dark mode"` | Run a single test by name |
 | `npx playwright test --ui` | Interactive Playwright UI |

@@ -53,12 +53,27 @@ const selectedCameraId = computed(() => route.query.selected as string | undefin
 const selectedEvents = computed(() => route.query.events as string | undefined)
 
 let qrLeaveTimer: ReturnType<typeof setTimeout> | null = null
+let qrCopyTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearQrHoverTimer() {
+  if (qrHoverTimer) {
+    clearTimeout(qrHoverTimer)
+    qrHoverTimer = null
+  }
+}
 
 function clearQrLeaveTimer() {
   if (qrLeaveTimer) {
     clearTimeout(qrLeaveTimer)
     qrLeaveTimer = null
   }
+}
+
+function scheduleQrClose() {
+  qrLeaveTimer = setTimeout(() => {
+    showQrPopup.value = false
+    qrUrlCopied.value = false
+  }, 300)
 }
 
 function onQrMouseEnter() {
@@ -69,14 +84,8 @@ function onQrMouseEnter() {
 }
 
 function onQrMouseLeave() {
-  if (qrHoverTimer) {
-    clearTimeout(qrHoverTimer)
-    qrHoverTimer = null
-  }
-  qrLeaveTimer = setTimeout(() => {
-    showQrPopup.value = false
-    qrUrlCopied.value = false
-  }, 300)
+  clearQrHoverTimer()
+  scheduleQrClose()
 }
 
 function onPopupMouseEnter() {
@@ -84,17 +93,20 @@ function onPopupMouseEnter() {
 }
 
 function onPopupMouseLeave() {
-  qrLeaveTimer = setTimeout(() => {
-    showQrPopup.value = false
-    qrUrlCopied.value = false
-  }, 300)
+  scheduleQrClose()
+}
+
+function onQrClick() {
+  showQrPopup.value = true
+  copyQrUrl()
 }
 
 async function copyQrUrl() {
   if (!qrUrl.value) return
   await navigator.clipboard.writeText(qrUrl.value)
   qrUrlCopied.value = true
-  setTimeout(() => { qrUrlCopied.value = false }, 2000)
+  if (qrCopyTimer) clearTimeout(qrCopyTimer)
+  qrCopyTimer = setTimeout(() => { qrUrlCopied.value = false }, 2000)
 }
 
 // Generate QR code when token, selected camera, or event types change
@@ -107,6 +119,7 @@ watch([() => authStore.token, selectedCameraId, selectedEvents], async ([token, 
   const ttl = authStore.tokenExpiration ? Math.floor(authStore.tokenExpiration / 1000) : 0
   let url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}&ttl=${ttl}`
   if (events) url += `&events=${events}`
+  if (url === qrUrl.value) return
   qrUrl.value = url
   qrDataUrl.value = await QRCode.toDataURL(url, { width: 300, margin: 2 })
 }, { immediate: true })
@@ -137,6 +150,8 @@ const tokenTimeRemaining = computed(() => {
   }
   return `${minutes}m ${seconds}s`
 })
+
+const tokenExpiryWarning = computed(() => authStore.tokenExpiresIn <= 0 || authStore.tokenExpiresIn < 3600000)
 
 // Copy token to clipboard and show it
 async function showAndCopyToken() {
@@ -225,7 +240,9 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
-  if (qrHoverTimer) clearTimeout(qrHoverTimer)
+  clearQrHoverTimer()
+  clearQrLeaveTimer()
+  if (qrCopyTimer) clearTimeout(qrCopyTimer)
 })
 
 watch(() => authStore.isAuthenticated, loadUser)
@@ -368,7 +385,7 @@ function onFullscreenChange() {
             <div
               class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
               title="Click or hover to show QR code"
-              @click="showQrPopup = true; copyQrUrl()"
+              @click="onQrClick"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="7" y="2" width="10" height="20" rx="2" stroke-width="2" />
@@ -410,7 +427,7 @@ function onFullscreenChange() {
                 <p class="text-xs text-center whitespace-nowrap" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
                   Scan with iPhone camera to view live video
                 </p>
-                <p class="text-[10px] text-center whitespace-nowrap" :class="tokenTimeRemaining === 'Expired' || authStore.tokenExpiresIn < 3600000 ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'">
+                <p class="text-[10px] text-center whitespace-nowrap" :class="tokenExpiryWarning ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'">
                   Token valid for {{ tokenTimeRemaining }} (until {{ tokenExpirationFormatted }})
                 </p>
               </div>
