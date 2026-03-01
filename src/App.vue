@@ -50,6 +50,7 @@ const qrDataUrl = ref('')
 const qrUrl = ref('')
 const qrUrlCopied = ref(false)
 const selectedCameraId = computed(() => route.query.selected as string | undefined)
+const selectedEvents = computed(() => route.query.events as string | undefined)
 
 let qrLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -96,14 +97,16 @@ async function copyQrUrl() {
   setTimeout(() => { qrUrlCopied.value = false }, 2000)
 }
 
-// Generate QR code when token or selected camera changes
-watch([() => authStore.token, selectedCameraId], async ([token, camId]) => {
+// Generate QR code when token, selected camera, or event types change
+watch([() => authStore.token, selectedCameraId, selectedEvents], async ([token, camId, events]) => {
   if (!token || !camId) {
     qrDataUrl.value = ''
     qrUrl.value = ''
     return
   }
-  const url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}`
+  const ttl = authStore.tokenExpiration ? Math.floor(authStore.tokenExpiration / 1000) : 0
+  let url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}&ttl=${ttl}`
+  if (events) url += `&events=${events}`
   qrUrl.value = url
   qrDataUrl.value = await QRCode.toDataURL(url, { width: 300, margin: 2 })
 }, { immediate: true })
@@ -363,8 +366,9 @@ function onFullscreenChange() {
             @mouseleave="onQrMouseLeave"
           >
             <div
-              class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-default"
-              title="Hover to show QR code"
+              class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              title="Click or hover to show QR code"
+              @click="showQrPopup = true; copyQrUrl()"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="7" y="2" width="10" height="20" rx="2" stroke-width="2" />
@@ -383,26 +387,26 @@ function onFullscreenChange() {
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-semibold whitespace-nowrap" :class="isDark ? 'text-white' : 'text-gray-800'">Mobile Companion</span>
                   <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-500 text-white">Experimental</span>
+                  <button
+                    class="p-0.5 rounded transition-colors"
+                    :class="qrUrlCopied
+                      ? 'text-green-500'
+                      : isDark
+                        ? 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-400 hover:text-gray-600'"
+                    :title="qrUrlCopied ? 'Copied!' : 'Copy URL'"
+                    @click="copyQrUrl"
+                  >
+                    <svg v-if="!qrUrlCopied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2" />
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
                 </div>
                 <img :src="qrDataUrl" alt="QR Code" class="w-[200px] h-[200px] rounded" />
-                <button
-                  class="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors"
-                  :class="qrUrlCopied
-                    ? 'bg-green-600 text-white'
-                    : isDark
-                      ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
-                  @click="copyQrUrl"
-                >
-                  <svg v-if="!qrUrlCopied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2" />
-                  </svg>
-                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  {{ qrUrlCopied ? 'Copied!' : 'Copy URL' }}
-                </button>
                 <p class="text-xs text-center whitespace-nowrap" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
                   Scan with iPhone camera to view live video
                 </p>
