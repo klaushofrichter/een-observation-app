@@ -103,7 +103,7 @@ watch([() => authStore.token, selectedCameraId], async ([token, camId]) => {
     qrUrl.value = ''
     return
   }
-  const url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl)}`
+  const url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}`
   qrUrl.value = url
   qrDataUrl.value = await QRCode.toDataURL(url, { width: 300, margin: 2 })
 }, { immediate: true })
