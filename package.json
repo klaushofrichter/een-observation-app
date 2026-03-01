@@ -1,6 +1,6 @@
 {
   "name": "een-camera-observation-app",
-  "version": "1.0.49",
+  "version": "1.0.50",
   "type": "module",
   "scripts": {
     "dev": "lsof -ti:3333 2>/dev/null | xargs kill -9 2>/dev/null; vite",
