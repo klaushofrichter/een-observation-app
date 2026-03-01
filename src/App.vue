@@ -47,29 +47,80 @@ const isAuthenticated = computed(() => authStore.isAuthenticated)
 const showQrPopup = ref(false)
 let qrHoverTimer: ReturnType<typeof setTimeout> | null = null
 const qrDataUrl = ref('')
+const qrUrl = ref('')
+const qrUrlCopied = ref(false)
 const selectedCameraId = computed(() => route.query.selected as string | undefined)
+const selectedEvents = computed(() => route.query.events as string | undefined)
+
+let qrLeaveTimer: ReturnType<typeof setTimeout> | null = null
+let qrCopyTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearQrHoverTimer() {
+  if (qrHoverTimer) {
+    clearTimeout(qrHoverTimer)
+    qrHoverTimer = null
+  }
+}
+
+function clearQrLeaveTimer() {
+  if (qrLeaveTimer) {
+    clearTimeout(qrLeaveTimer)
+    qrLeaveTimer = null
+  }
+}
+
+function scheduleQrClose() {
+  qrLeaveTimer = setTimeout(() => {
+    showQrPopup.value = false
+    qrUrlCopied.value = false
+  }, 300)
+}
 
 function onQrMouseEnter() {
+  clearQrLeaveTimer()
   qrHoverTimer = setTimeout(() => {
     showQrPopup.value = true
   }, 1000)
 }
 
 function onQrMouseLeave() {
-  if (qrHoverTimer) {
-    clearTimeout(qrHoverTimer)
-    qrHoverTimer = null
-  }
-  showQrPopup.value = false
+  clearQrHoverTimer()
+  scheduleQrClose()
 }
 
-// Generate QR code when token or selected camera changes
-watch([() => authStore.token, selectedCameraId], async ([token, camId]) => {
+function onPopupMouseEnter() {
+  clearQrLeaveTimer()
+}
+
+function onPopupMouseLeave() {
+  scheduleQrClose()
+}
+
+function onQrClick() {
+  showQrPopup.value = true
+  copyQrUrl()
+}
+
+async function copyQrUrl() {
+  if (!qrUrl.value) return
+  await navigator.clipboard.writeText(qrUrl.value)
+  qrUrlCopied.value = true
+  if (qrCopyTimer) clearTimeout(qrCopyTimer)
+  qrCopyTimer = setTimeout(() => { qrUrlCopied.value = false }, 2000)
+}
+
+// Generate QR code when token, selected camera, or event types change
+watch([() => authStore.token, selectedCameraId, selectedEvents], async ([token, camId, events]) => {
   if (!token || !camId) {
     qrDataUrl.value = ''
+    qrUrl.value = ''
     return
   }
-  const url = `eenviewer://view?token=${token}&cam=${camId}`
+  const ttl = authStore.tokenExpiration ? Math.floor(authStore.tokenExpiration / 1000) : 0
+  let url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}&ttl=${ttl}`
+  if (events) url += `&events=${events}`
+  if (url === qrUrl.value) return
+  qrUrl.value = url
   qrDataUrl.value = await QRCode.toDataURL(url, { width: 300, margin: 2 })
 }, { immediate: true })
 
@@ -99,6 +150,8 @@ const tokenTimeRemaining = computed(() => {
   }
   return `${minutes}m ${seconds}s`
 })
+
+const tokenExpiryWarning = computed(() => authStore.tokenExpiresIn <= 0 || authStore.tokenExpiresIn < 3600000)
 
 // Copy token to clipboard and show it
 async function showAndCopyToken() {
@@ -187,7 +240,9 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
-  if (qrHoverTimer) clearTimeout(qrHoverTimer)
+  clearQrHoverTimer()
+  clearQrLeaveTimer()
+  if (qrCopyTimer) clearTimeout(qrCopyTimer)
 })
 
 watch(() => authStore.isAuthenticated, loadUser)
@@ -328,8 +383,9 @@ function onFullscreenChange() {
             @mouseleave="onQrMouseLeave"
           >
             <div
-              class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-default"
-              title="Hover to show QR code"
+              class="p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              title="Click or hover to show QR code"
+              @click="onQrClick"
             >
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="7" y="2" width="10" height="20" rx="2" stroke-width="2" />
@@ -342,14 +398,37 @@ function onFullscreenChange() {
                 v-if="showQrPopup && qrDataUrl"
                 class="absolute right-0 top-full mt-2 z-50 rounded-lg shadow-xl p-4 flex flex-col items-center gap-3"
                 :class="isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'"
+                @mouseenter="onPopupMouseEnter"
+                @mouseleave="onPopupMouseLeave"
               >
                 <div class="flex items-center gap-2">
                   <span class="text-sm font-semibold whitespace-nowrap" :class="isDark ? 'text-white' : 'text-gray-800'">Mobile Companion</span>
                   <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-orange-500 text-white">Experimental</span>
+                  <button
+                    class="p-0.5 rounded transition-colors"
+                    :class="qrUrlCopied
+                      ? 'text-green-500'
+                      : isDark
+                        ? 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-400 hover:text-gray-600'"
+                    :title="qrUrlCopied ? 'Copied!' : 'Copy URL'"
+                    @click="copyQrUrl"
+                  >
+                    <svg v-if="!qrUrlCopied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2" />
+                    </svg>
+                    <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
                 </div>
                 <img :src="qrDataUrl" alt="QR Code" class="w-[200px] h-[200px] rounded" />
                 <p class="text-xs text-center whitespace-nowrap" :class="isDark ? 'text-gray-400' : 'text-gray-500'">
                   Scan with iPhone camera to view live video
+                </p>
+                <p class="text-[10px] text-center whitespace-nowrap" :class="tokenExpiryWarning ? 'text-red-500' : isDark ? 'text-gray-500' : 'text-gray-400'">
+                  Token valid for {{ tokenTimeRemaining }} (until {{ tokenExpirationFormatted }})
                 </p>
               </div>
             </Transition>

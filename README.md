@@ -116,7 +116,7 @@ The bottom section of the application contains three panels for event management
 - **Visual Camera Selection Feedback** - Selected camera shows thick border
 - **Panel Tooltips** - Hover over panel titles to see descriptions
 - **Bounding Box Overlays** - Object detection boxes shown on event thumbnails and video
-- **Mobile Companion QR Code** - *(Experimental)* QR code icon appears in the top bar when a camera is selected; scan with an iPhone to open the companion app with live video for the selected camera. See [docs/mobile-companion.md](docs/mobile-companion.md) for architecture details
+- **Mobile Companion QR Code** - *(Experimental)* QR code icon appears in the top bar when a camera is selected; hover to preview or click to open popup and auto-copy the URL to clipboard. The QR code URL includes camera ID, auth token, base URL, token expiration epoch (`ttl`), and selected event type hashes. Popup shows token validity countdown (red when < 1 hour) with expiration timestamp. Inline copy icon next to the "Experimental" label for manual copying. See [docs/mobile-companion.md](docs/mobile-companion.md) for architecture details
 
 ## URL Parameters
 
@@ -360,13 +360,14 @@ tests/
 ├── mute.spec.ts               # Mute toggle, URL parameter, and persistence tests (3)
 ├── event-types.spec.ts        # Event type selection and count tests (3)
 ├── events.spec.ts             # Events and alerts panel tests (10)
+├── qr-code.spec.ts            # Mobile companion QR code popup tests (6)
 ├── url-state.spec.ts          # URL parameter state persistence tests (1)
 └── user-info.spec.ts          # User info modal detail tests (3)
 ```
 
 ## Testing
 
-The project includes 45 Playwright E2E tests across 9 spec files:
+The project includes 51 Playwright E2E tests across 10 spec files:
 
 ### Authentication (`auth.spec.ts` — 8 tests)
 - Redirect unauthenticated users to login page
@@ -423,6 +424,14 @@ The project includes 45 Playwright E2E tests across 9 spec files:
 
 ### URL State Persistence (`url-state.spec.ts` — 1 test)
 - Restore camera selection and event type filters from URL after logout/login
+
+### QR Code Popup (`qr-code.spec.ts` — 6 tests)
+- QR icon hidden when no camera selected
+- QR icon appears after camera selection
+- Click opens popup immediately with QR code, title, and token validity
+- Hover opens popup after 1-second delay
+- Popup stays open when mouse moves to it
+- Copy button shows copied feedback
 
 ### User Info Modal (`user-info.spec.ts` — 3 tests)
 - Display base URL and copy to clipboard with feedback
