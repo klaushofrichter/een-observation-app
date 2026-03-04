@@ -117,7 +117,7 @@ watch([() => authStore.token, selectedCameraId, selectedEvents], async ([token, 
     return
   }
   const ttl = authStore.tokenExpiration ? Math.floor(authStore.tokenExpiration / 1000) : 0
-  let url = `eenviewer://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}&ttl=${ttl}`
+  let url = `eenobserve://view?token=${token}&cam=${camId}&base=${encodeURIComponent(authStore.baseUrl || '')}&ttl=${ttl}`
   if (events) url += `&events=${events}`
   if (url === qrUrl.value) return
   qrUrl.value = url
