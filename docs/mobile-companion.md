@@ -9,7 +9,7 @@ The Mobile Companion is a native iOS app that receives an EEN access token and c
 The web app generates a QR code encoding a custom URL scheme:
 
 ```
-eenviewer://view?token=<access_token>&cam=<camera_id>&base=<base_url>&ttl=<epoch_seconds>&events=<hash1,hash2,...>
+eenobserve://view?token=<access_token>&cam=<camera_id>&base=<base_url>&ttl=<epoch_seconds>&events=<hash1,hash2,...>
 ```
 
 - `token` — EEN OAuth access token (from `authStore.token`)
@@ -26,7 +26,7 @@ Web App                     iOS App
 1. User selects camera
 2. Clicks QR icon (auto-copies URL)
 3. QR popup shown ─────►  4. Camera scans QR
-                            5. Parse eenviewer:// URL
+                            5. Parse eenobserve:// URL
                             6. Extract token, cam, base,
                                ttl, events
                             7. Use base URL directly
@@ -41,7 +41,7 @@ Web App                     iOS App
 ## iOS App Components
 
 ### URL Scheme Handler
-- Register `eenviewer://` custom URL scheme in `Info.plist`
+- Register `eenobserve://` custom URL scheme in `Info.plist`
 - Parse `token` and `cam` query parameters
 - Store token in Keychain for the session
 
