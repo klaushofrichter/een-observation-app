@@ -26,6 +26,53 @@ const mediaSessionInitialized = ref(false)
 // Retry timer for offline cameras
 let retryInterval: ReturnType<typeof setInterval> | null = null
 
+// Reconnect with exponential backoff
+const MAX_RECONNECT_ATTEMPTS = 15
+const INITIAL_RECONNECT_DELAY = 3000
+const MAX_RECONNECT_DELAY = 60000
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
+
+function stopReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+function resetReconnectAttempts() {
+  reconnectAttempt = 0
+}
+
+// Schedule a reconnect with exponential backoff
+function scheduleReconnect(reason: string) {
+  if (!isMounted.value) return
+  stopReconnectTimer()
+
+  if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+    error.value = 'Stream failed - click to retry'
+    loading.value = false
+    return
+  }
+
+  const delay = Math.min(INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempt), MAX_RECONNECT_DELAY)
+  reconnectAttempt++
+  error.value = reason
+  loading.value = false
+
+  reconnectTimer = setTimeout(() => {
+    if (isMounted.value) initializePreview()
+  }, delay)
+}
+
+// Called when img encounters an error (connection lost)
+function handleImageError() {
+  if (isMounted.value && previewUrl.value) {
+    previewUrl.value = null
+    scheduleReconnect('Stream disconnected - reconnecting...')
+  }
+}
+
 // Helper to extract status string from the union type
 function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
   if (!status) return undefined
@@ -90,6 +137,7 @@ async function initializePreview() {
 
   loading.value = true
   error.value = null
+  stopReconnectTimer()
   previewUrl.value = null
 
   // Check if camera is online
@@ -105,8 +153,7 @@ async function initializePreview() {
     if (!mediaSessionInitialized.value) {
       const sessionResult = await initMediaSession()
       if (sessionResult.error) {
-        error.value = 'Media session error'
-        loading.value = false
+        scheduleReconnect('Media session error - retrying...')
         return
       }
       mediaSessionInitialized.value = true
@@ -124,8 +171,7 @@ async function initializePreview() {
     if (!isMounted.value) return
 
     if (feedsResult.error) {
-      error.value = 'Failed to load feed'
-      loading.value = false
+      scheduleReconnect('Failed to load feed - retrying...')
       return
     }
 
@@ -135,28 +181,32 @@ async function initializePreview() {
     if (previewFeed?.multipartUrl) {
       previewUrl.value = previewFeed.multipartUrl
       stopRetryTimer()
+      resetReconnectAttempts()
+      loading.value = false
     } else {
-      error.value = 'No preview available'
+      scheduleReconnect('No preview available - retrying...')
     }
   } catch (e) {
     if (isMounted.value) {
-      error.value = 'Connection error'
-    }
-  } finally {
-    if (isMounted.value) {
-      loading.value = false
+      scheduleReconnect('Connection error - retrying...')
     }
   }
 }
 
-// Handle card click
+// Handle card click - also retries if reconnect attempts exhausted
 function handleClick() {
+  if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+    resetReconnectAttempts()
+    initializePreview()
+  }
   emit('select', props.camera)
 }
 
 // Watch for camera changes
 watch(() => props.camera.id, () => {
   stopRetryTimer()
+  stopReconnectTimer()
+  resetReconnectAttempts()
   initializePreview()
 })
 
@@ -167,6 +217,7 @@ onMounted(() => {
 onUnmounted(() => {
   isMounted.value = false
   stopRetryTimer()
+  stopReconnectTimer()
   previewUrl.value = null
 })
 </script>
@@ -224,6 +275,7 @@ onUnmounted(() => {
         :alt="camera.name"
         class="w-full h-full object-cover"
         loading="lazy"
+        @error="handleImageError"
       />
 
       <!-- Status Badge -->

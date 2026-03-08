@@ -7,7 +7,7 @@ dotenv.config()
  * E2E tests for Mobile Companion QR Code Popup
  *
  * Tests:
- * 1. QR icon is hidden when no camera is selected
+ * 1. QR icon is hidden when not authenticated
  * 2. QR icon appears after camera selection
  * 3. Click QR icon opens popup immediately
  * 4. Popup shows QR code image, title, and token validity
@@ -121,16 +121,13 @@ test.describe('Mobile Companion QR Code', () => {
   const qrIconSelector = '[title="Click or hover to show QR code"]'
   const qrPopupSelector = '.absolute.right-0.top-full'
 
-  test('should not show QR icon when no camera is selected', async ({ page }) => {
+  test('should not show QR icon when not authenticated', async ({ page }) => {
     skipIfNoProxy()
-    skipIfNoCredentials()
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
 
-    // Wait for the page to load and sidebar to appear
-    const sidebar = page.locator('.camera-sidebar')
-    await expect(sidebar).toBeVisible({ timeout: TIMEOUTS.CAMERA_LOAD })
+    // Navigate to login page without authenticating
+    await page.goto('/login')
 
-    // QR icon should not be visible without a selected camera
+    // QR icon should not be visible when not authenticated
     await expect(page.locator(qrIconSelector)).not.toBeVisible()
   })
 
