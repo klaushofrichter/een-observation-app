@@ -26,6 +26,28 @@ const mediaSessionInitialized = ref(false)
 // Retry timer for offline cameras
 let retryInterval: ReturnType<typeof setInterval> | null = null
 
+// Reconnect timer for stream errors
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function stopReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+}
+
+// Called when img encounters an error (connection lost)
+function handleImageError() {
+  if (isMounted.value && previewUrl.value) {
+    stopReconnectTimer()
+    error.value = 'Stream disconnected - reconnecting...'
+    previewUrl.value = null
+    reconnectTimer = setTimeout(() => {
+      if (isMounted.value) initializePreview()
+    }, 3000)
+  }
+}
+
 // Helper to extract status string from the union type
 function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
   if (!status) return undefined
@@ -90,6 +112,7 @@ async function initializePreview() {
 
   loading.value = true
   error.value = null
+  stopReconnectTimer()
   previewUrl.value = null
 
   // Check if camera is online
@@ -157,6 +180,7 @@ function handleClick() {
 // Watch for camera changes
 watch(() => props.camera.id, () => {
   stopRetryTimer()
+  stopReconnectTimer()
   initializePreview()
 })
 
@@ -167,6 +191,7 @@ onMounted(() => {
 onUnmounted(() => {
   isMounted.value = false
   stopRetryTimer()
+  stopReconnectTimer()
   previewUrl.value = null
 })
 </script>
@@ -224,6 +249,7 @@ onUnmounted(() => {
         :alt="camera.name"
         class="w-full h-full object-cover"
         loading="lazy"
+        @error="handleImageError"
       />
 
       <!-- Status Badge -->
