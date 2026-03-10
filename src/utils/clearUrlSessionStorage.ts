@@ -11,4 +11,5 @@ export function clearUrlSessionStorage() {
   sessionStorage.removeItem('een_url_filter')
   sessionStorage.removeItem('een_url_dark')
   sessionStorage.removeItem('een_url_mute')
+  sessionStorage.removeItem('een_url_full')
 }

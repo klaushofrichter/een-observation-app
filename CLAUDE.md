@@ -52,7 +52,7 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useHlsPlayer()` — HLS.js player setup and teardown
 
 ### URL State
-All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
+All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`, `full`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
 
 ### Dark Mode
 Toggles `dark` class on `<html>` element. Tailwind CSS scopes dark styles. Persists via localStorage (`een_dark_mode`) and sessionStorage through OAuth flow. URL param `dark=1` overrides stored preference.

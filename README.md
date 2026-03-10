@@ -108,7 +108,7 @@ The bottom section of the application contains three panels for event management
 - **Token Auto-Refresh** - Automatic token renewal before expiration
 
 ### User Interface
-- **Fullscreen Mode** - Click the app eye icon in the top-left corner to toggle browser fullscreen; press Escape to exit
+- **Fullscreen Mode** - Click the app eye icon in the top-left corner to toggle browser fullscreen; press Escape to exit. Use `full=1` URL parameter to request fullscreen on load (shows a confirmation prompt)
 - **Help Button** - Question mark icon in the top bar opens the README documentation on GitHub
 - **Dark Mode Toggle** - Switch between light and dark themes with persistent preference
 - **Sound Notifications** - Audio beep on new SSE events; mute toggle in the top bar with URL parameter persistence
@@ -120,17 +120,17 @@ The bottom section of the application contains three panels for event management
 
 ## URL Parameters
 
-The application supports deep-linking with URL parameters to restore camera selection, selected camera, event type filters, time range durations, auto-refresh settings, live events toggle, event filter, dark mode, and mute state.
+The application supports deep-linking with URL parameters to restore camera selection, selected camera, event type filters, time range durations, auto-refresh settings, live events toggle, event filter, dark mode, mute state, and fullscreen mode.
 
 ### Full URL Format
 
 ```
-http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>&ed=<duration>&ad=<duration>&er=1&ar=1&live=1&filter=1&dark=1&mute=1
+http://127.0.0.1:3333/?id=<camera-ids>&selected=<camera-id>&events=<event-hashes>&ed=<duration>&ad=<duration>&er=1&ar=1&live=1&filter=1&dark=1&mute=1&full=1
 ```
 
 **Example:**
 ```
-http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj&ed=24h&ad=1w&er=1&live=1&dark=1&mute=1
+http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nkU,wOj&ed=24h&ad=1w&er=1&live=1&dark=1&mute=1&full=1
 ```
 
 ### Parameters
@@ -148,6 +148,7 @@ http://127.0.0.1:3333/?id=1005963a,100f030c,1003e46b&selected=100f030c&events=nk
 | `filter` | Event type filter for alerts enabled (`1` = on) | `filter=1` |
 | `dark` | Dark mode (`1` = on, `0` = off) | `dark=1` |
 | `mute` | Mute sound notifications (`1` = muted) | `mute=1` |
+| `full` | Request fullscreen mode (`1` = on) | `full=1` |
 
 ### Camera Selection (`id` and `selected`)
 
@@ -224,6 +225,13 @@ Controls whether sound notifications are muted:
 - `mute=1` - Mute sound notifications
 
 When unmuted (default), a short audio beep plays on each new SSE event notification. The parameter is only included in the URL when muted.
+
+### Fullscreen (`full`)
+
+Requests fullscreen mode on page load:
+- `full=1` - Prompt the user to enter fullscreen mode
+
+Since browsers require a real user gesture for the Fullscreen API, a confirmation dialog is shown asking the user to click "Go Fullscreen". The parameter persists through the OAuth login flow. Once in fullscreen, pressing Escape exits fullscreen and removes the parameter from the URL. Fullscreen can also be toggled manually by clicking the eye icon in the top-left corner.
 
 ### URL Persistence
 

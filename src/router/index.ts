@@ -159,6 +159,13 @@ router.beforeEach((to, _from, next) => {
     } else {
       sessionStorage.removeItem('een_url_mute')
     }
+
+    // Store fullscreen (full)
+    if (to.query.full !== undefined) {
+      sessionStorage.setItem('een_url_full', to.query.full as string)
+    } else {
+      sessionStorage.removeItem('een_url_full')
+    }
   }
 
   if (to.meta.requiresAuth && !isAuthenticated()) {

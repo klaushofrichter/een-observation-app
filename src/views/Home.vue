@@ -170,6 +170,9 @@ const initialEventFilter = computed(() => {
   return filter === '1'
 })
 
+// Track fullscreen state for URL sync
+const isFullscreen = ref(!!document.fullscreenElement)
+
 // Selected camera state
 const selectedCamera = ref<Camera | null>(null)
 
@@ -247,6 +250,11 @@ function updateUrl() {
     newQuery.mute = '1'
   }
 
+  // Add fullscreen parameter (only if enabled)
+  if (isFullscreen.value) {
+    newQuery.full = '1'
+  }
+
   // Only update if different to avoid unnecessary history entries
   const currentId = route.query.id as string | undefined
   const currentSelected = route.query.selected as string | undefined
@@ -259,7 +267,8 @@ function updateUrl() {
   const currentFilter = route.query.filter as string | undefined
   const currentDark = route.query.dark as string | undefined
   const currentMute = route.query.mute as string | undefined
-  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events || currentEd !== newQuery.ed || currentAd !== newQuery.ad || currentEr !== newQuery.er || currentAr !== newQuery.ar || currentLive !== newQuery.live || currentFilter !== newQuery.filter || currentDark !== newQuery.dark || currentMute !== newQuery.mute) {
+  const currentFull = route.query.full as string | undefined
+  if (currentId !== newQuery.id || currentSelected !== newQuery.selected || currentEvents !== newQuery.events || currentEd !== newQuery.ed || currentAd !== newQuery.ad || currentEr !== newQuery.er || currentAr !== newQuery.ar || currentLive !== newQuery.live || currentFilter !== newQuery.filter || currentDark !== newQuery.dark || currentMute !== newQuery.mute || currentFull !== newQuery.full) {
     router.replace({ query: newQuery })
   }
 }
@@ -403,6 +412,12 @@ function handleEventFilterChange(enabled: boolean) {
 // Computed events list from EventsPanel (for MainVideoPlayer to check before API calls)
 const eventsList = computed(() => eventsPanelRef.value?.events || [])
 
+// Sync fullscreen state from document to URL
+function handleFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+  updateUrl()
+}
+
 onMounted(async () => {
   const result = await getCurrentUser()
 
@@ -417,6 +432,11 @@ onMounted(async () => {
   }
 
   loading.value = false
+
+  // Track fullscreen changes for URL sync
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  // Sync initial state in case App.vue already entered fullscreen
+  isFullscreen.value = !!document.fullscreenElement
 })
 
 // Watch for dark mode and mute changes and update URL
