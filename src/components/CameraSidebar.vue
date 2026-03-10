@@ -41,6 +41,9 @@ const inaccessibleCameraIds = ref<string[]>([]) // Camera IDs from URL that user
 // Camera selection modal state
 const showCameraSelectModal = ref(false)
 
+// Key to trigger preview stream restart on all visible cards
+const previewRefreshKey = ref(0)
+
 // Pagination state - using dynamic calculation based on viewport
 const currentPage = ref(1)
 const camerasPerPage = ref(4) // Default, will be recalculated
@@ -261,9 +264,17 @@ function handleCameraSelect(camera: Camera) {
   emit('select-camera', camera)
 }
 
-// Refresh cameras
+// Refresh cameras and restart preview streams
 async function refresh() {
   await fetchCameras()
+  previewRefreshKey.value++
+}
+
+// Restart preview streams when tab becomes visible again
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    previewRefreshKey.value++
+  }
 }
 
 // Handle camera selection modal confirm
@@ -322,6 +333,9 @@ onMounted(async () => {
 
   // Also listen to window resize as fallback
   window.addEventListener('resize', handleResize)
+
+  // Restart preview streams when tab becomes visible
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
@@ -329,6 +343,7 @@ onUnmounted(() => {
     resizeObserver.disconnect()
   }
   window.removeEventListener('resize', handleResize)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 
@@ -485,6 +500,7 @@ onUnmounted(() => {
             :selected="item.camera.id === selectedCameraId"
             :is-playing="item.camera.id === selectedCameraId && isLivePlayback"
             :is-dark="isDark"
+            :refresh-key="previewRefreshKey"
             @select="handleCameraSelect"
           />
           <ErrorCameraCard

@@ -44,8 +44,9 @@ onMounted(async () => {
   const storedLive = sessionStorage.getItem('een_url_live')
   const storedFilter = sessionStorage.getItem('een_url_filter')
   const storedDark = sessionStorage.getItem('een_url_dark')
+  const storedFull = sessionStorage.getItem('een_url_full')
 
-  if (storedCameraIds || storedSelected || storedEvents || storedEd || storedAd || storedEr || storedAr || storedLive || storedFilter || storedDark) {
+  if (storedCameraIds || storedSelected || storedEvents || storedEd || storedAd || storedEr || storedAr || storedLive || storedFilter || storedDark || storedFull) {
     const query: Record<string, string> = {}
     if (storedCameraIds) query.id = storedCameraIds
     if (storedSelected) query.selected = storedSelected
@@ -57,6 +58,7 @@ onMounted(async () => {
     if (storedLive) query.live = storedLive
     if (storedFilter) query.filter = storedFilter
     if (storedDark) query.dark = storedDark
+    if (storedFull) query.full = storedFull
     router.push({ path: '/', query })
   } else {
     router.push('/')

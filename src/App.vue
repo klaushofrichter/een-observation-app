@@ -228,6 +228,16 @@ onMounted(() => {
   // Listen for fullscreen changes
   document.addEventListener('fullscreenchange', onFullscreenChange)
 
+  // Check for fullscreen URL parameter - only show prompt for authenticated users
+  if (isAuthenticated.value) {
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlFull = urlParams.get('full') || sessionStorage.getItem('een_url_full')
+    if (urlFull === '1' && !document.fullscreenElement) {
+      // Browsers require a real user gesture for fullscreen — show a prompt
+      showFullscreenPrompt.value = true
+    }
+  }
+
   // Check for mute URL parameter (overrides localStorage)
   const urlMute = sessionStorage.getItem('een_url_mute')
   if (urlMute === '1') {
@@ -239,6 +249,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
+  document.removeEventListener('keydown', handleFullscreenPromptEscKey)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   clearQrHoverTimer()
   clearQrLeaveTimer()
@@ -249,6 +260,35 @@ watch(() => authStore.isAuthenticated, loadUser)
 
 // Fullscreen toggle
 const isFullscreen = ref(false)
+const showFullscreenPrompt = ref(false)
+
+function enterFullscreenFromPrompt() {
+  showFullscreenPrompt.value = false
+  document.documentElement.requestFullscreen().catch((err) => {
+    console.warn('[Fullscreen] requestFullscreen failed:', err)
+  })
+}
+
+function dismissFullscreenPrompt() {
+  showFullscreenPrompt.value = false
+  sessionStorage.removeItem('een_url_full')
+}
+
+// Handle ESC key to close fullscreen prompt
+function handleFullscreenPromptEscKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    dismissFullscreenPrompt()
+  }
+}
+
+// Watch fullscreen prompt state to add/remove ESC key listener
+watch(showFullscreenPrompt, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleFullscreenPromptEscKey)
+  } else {
+    document.removeEventListener('keydown', handleFullscreenPromptEscKey)
+  }
+})
 
 function toggleFullscreen() {
   if (document.fullscreenElement) {
@@ -580,6 +620,42 @@ function onFullscreenChange() {
       :show="showExportModal"
       @close="showExportModal = false"
     />
+
+    <!-- Fullscreen Prompt Overlay -->
+    <Teleport to="body">
+      <div
+        v-if="showFullscreenPrompt"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
+        @click="dismissFullscreenPrompt"
+      >
+        <div
+          class="rounded-xl shadow-2xl p-6 text-center max-w-sm mx-4"
+          :class="isDark ? 'bg-gray-800' : 'bg-white'"
+          @click.stop
+        >
+          <svg class="w-12 h-12 mx-auto mb-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+          <p class="text-lg font-semibold mb-2" :class="isDark ? 'text-white' : 'text-gray-800'">Enter Fullscreen?</p>
+          <p class="text-sm mb-4" :class="isDark ? 'text-gray-400' : 'text-gray-500'">The URL requested fullscreen mode. Click below to activate it.</p>
+          <div class="flex gap-3 justify-center">
+            <button
+              @click="dismissFullscreenPrompt"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              :class="isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            >
+              Cancel
+            </button>
+            <button
+              @click="enterFullscreenFromPrompt"
+              class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 transition-colors"
+            >
+              Go Fullscreen
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 

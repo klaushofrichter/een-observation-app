@@ -8,6 +8,7 @@ const props = defineProps<{
   selected: boolean
   isPlaying?: boolean
   isDark?: boolean
+  refreshKey?: number
 }>()
 
 const emit = defineEmits<{
@@ -208,6 +209,15 @@ watch(() => props.camera.id, () => {
   stopReconnectTimer()
   resetReconnectAttempts()
   initializePreview()
+})
+
+// Watch for refresh key changes (triggered by refresh button or tab visibility)
+watch(() => props.refreshKey, (newVal, oldVal) => {
+  if (newVal !== undefined && oldVal !== undefined && newVal !== oldVal) {
+    stopReconnectTimer()
+    resetReconnectAttempts()
+    initializePreview()
+  }
 })
 
 onMounted(() => {
