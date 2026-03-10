@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, inject, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, inject, watch } from 'vue'
 import type { Ref } from 'vue'
 import { getCurrentUser } from 'een-api-toolkit'
 import type { Camera } from 'een-api-toolkit'
@@ -437,6 +437,10 @@ onMounted(async () => {
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   // Sync initial state in case App.vue already entered fullscreen
   isFullscreen.value = !!document.fullscreenElement
+})
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 
 // Watch for dark mode and mute changes and update URL

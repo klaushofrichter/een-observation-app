@@ -228,13 +228,14 @@ onMounted(() => {
   // Listen for fullscreen changes
   document.addEventListener('fullscreenchange', onFullscreenChange)
 
-  // Check for fullscreen URL parameter - read from both URL and sessionStorage
-  // (sessionStorage may not be set yet if router guard hasn't run)
-  const urlParams = new URLSearchParams(window.location.search)
-  const urlFull = urlParams.get('full') || sessionStorage.getItem('een_url_full')
-  if (urlFull === '1' && !document.fullscreenElement) {
-    // Browsers require a real user gesture for fullscreen — show a prompt
-    showFullscreenPrompt.value = true
+  // Check for fullscreen URL parameter - only show prompt for authenticated users
+  if (isAuthenticated.value) {
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlFull = urlParams.get('full') || sessionStorage.getItem('een_url_full')
+    if (urlFull === '1' && !document.fullscreenElement) {
+      // Browsers require a real user gesture for fullscreen — show a prompt
+      showFullscreenPrompt.value = true
+    }
   }
 
   // Check for mute URL parameter (overrides localStorage)
@@ -248,6 +249,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscKey)
+  document.removeEventListener('keydown', handleFullscreenPromptEscKey)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   clearQrHoverTimer()
   clearQrLeaveTimer()
@@ -258,7 +260,6 @@ watch(() => authStore.isAuthenticated, loadUser)
 
 // Fullscreen toggle
 const isFullscreen = ref(false)
-const fullscreenButtonRef = ref<HTMLButtonElement | null>(null)
 const showFullscreenPrompt = ref(false)
 
 function enterFullscreenFromPrompt() {
@@ -270,7 +271,24 @@ function enterFullscreenFromPrompt() {
 
 function dismissFullscreenPrompt() {
   showFullscreenPrompt.value = false
+  sessionStorage.removeItem('een_url_full')
 }
+
+// Handle ESC key to close fullscreen prompt
+function handleFullscreenPromptEscKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    dismissFullscreenPrompt()
+  }
+}
+
+// Watch fullscreen prompt state to add/remove ESC key listener
+watch(showFullscreenPrompt, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleFullscreenPromptEscKey)
+  } else {
+    document.removeEventListener('keydown', handleFullscreenPromptEscKey)
+  }
+})
 
 function toggleFullscreen() {
   if (document.fullscreenElement) {
@@ -307,7 +325,6 @@ function onFullscreenChange() {
         <div class="flex items-center gap-2 text-xl font-semibold">
           <!-- Eye icon — fullscreen toggle -->
           <button
-            ref="fullscreenButtonRef"
             @click="toggleFullscreen"
             class="hover:opacity-80 transition-opacity cursor-pointer"
             :title="isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'"
