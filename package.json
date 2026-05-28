@@ -10,6 +10,7 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
+    "test:unit": "vitest run",
     "prepare": "husky"
   },
   "dependencies": {
@@ -31,9 +32,11 @@
     "@types/qrcode": "^1.5.6",
     "autoprefixer": "^10.4.23",
     "dotenv": "^17.2.3",
+    "happy-dom": "^15.11.7",
     "husky": "^9.1.7",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "vitest": "^2.1.9",
     "vue-tsc": "^2.2.12"
   }
 }
