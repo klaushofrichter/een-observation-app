@@ -15,10 +15,33 @@ function injectEenVendor(een: EenVendor): void {
   authStore.setToken(een.accessToken, expiresIn)
 }
 
+// --- Fix 1: Reload-loop guard ---
+const RELOAD_GUARD_KEY = 'labs_refresh_reloads'
+const MAX_RELOADS = 2
+
+function reloadOrRedirect(): void {
+  const count = parseInt(sessionStorage.getItem(RELOAD_GUARD_KEY) ?? '0', 10)
+  if (count >= MAX_RELOADS) {
+    sessionStorage.removeItem(RELOAD_GUARD_KEY)
+    window.location.href = `${getLabsConfig().labsBase}/product/${LABS_PRODUCT_SLUG}`
+  } else {
+    sessionStorage.setItem(RELOAD_GUARD_KEY, String(count + 1))
+    window.location.reload()
+  }
+}
+
+// --- Fix 2: Cancellable refresh timer ---
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
+function cancelRefresh(): void {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer)
+    refreshTimer = null
+  }
+}
+
 function scheduleRefresh(expiresAt: number): void {
-  if (refreshTimer) clearTimeout(refreshTimer)
+  cancelRefresh()
   const ms = Math.max(5000, (expiresAt - nowSeconds() - 60) * 1000)
   refreshTimer = setTimeout(() => {
     void refreshLabsAuth()
@@ -71,18 +94,22 @@ export async function refreshLabsAuth(): Promise<void> {
       labsBase: cfg.labsBase
     })
     if (!vendors || !vendors.een) {
-      window.location.reload()
+      reloadOrRedirect()
       return
     }
     injectEenVendor(vendors.een)
     scheduleRefresh(vendors.een.expiresAt)
+    // Clear the guard on a successful refresh so transient failures don't
+    // accumulate toward the cap.
+    sessionStorage.removeItem(RELOAD_GUARD_KEY)
   } catch {
-    window.location.reload()
+    reloadOrRedirect()
   }
 }
 
 export async function labsLogout(): Promise<void> {
   const cfg = getLabsConfig()
+  cancelRefresh()
   try {
     const sdk = await loadLabsSdk()
     sdk.logout()
