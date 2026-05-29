@@ -1,0 +1,6 @@
+apiVersion: v2
+name: een-labs-observation-app
+description: EEN Camera Observation App - Brivo Labs experiment (Path B)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
