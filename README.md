@@ -230,12 +230,12 @@ When unmuted (default), a short audio beep plays on each new SSE event notificat
 Requests fullscreen mode on page load:
 - `full=1` - Prompt the user to enter fullscreen mode
 
-Since browsers require a real user gesture for the Fullscreen API, a confirmation dialog is shown asking the user to click "Go Fullscreen". The parameter persists through the OAuth login flow. Once in fullscreen, pressing Escape exits fullscreen and removes the parameter from the URL. Fullscreen can also be toggled manually by clicking the eye icon in the top-left corner.
+Since browsers require a real user gesture for the Fullscreen API, a confirmation dialog is shown asking the user to click "Go Fullscreen". The parameter is saved to sessionStorage by the router guard so it is restored after internal navigation. Once in fullscreen, pressing Escape exits fullscreen and removes the parameter from the URL. Fullscreen can also be toggled manually by clicking the eye icon in the top-left corner.
 
 ### URL Persistence
 
-- All URL parameters persist through the login flow
-- Sharing a URL allows others to see the exact same view (after login)
+- All URL parameters persist through internal navigation (saved to sessionStorage by the router guard)
+- Sharing a URL allows others to see the exact same view (after the Labs auth gate approves access)
 
 ## Technology Stack
 
@@ -348,10 +348,7 @@ src/
 │   ├── useSseNotification.ts  # Toast notifications for SSE events with sound
 │   └── useVideoExport.ts      # Video export with auto-clipping
 ├── views/
-│   ├── Home.vue               # Main application view
-│   ├── Login.vue              # OAuth login page
-│   ├── Callback.vue           # OAuth callback handler
-│   └── Logout.vue             # Logout page
+│   └── Home.vue               # Main application view (only view; auth handled by labs-auth.js)
 ├── router/
 │   └── index.ts               # Vue Router with auth guards
 ├── assets/
@@ -379,15 +376,11 @@ tests/
 
 ## Testing
 
-The project includes 51 Playwright E2E tests across 10 spec files:
+The project includes 45 Playwright E2E tests across 10 spec files:
 
-### Authentication (`auth.spec.ts` — 8 tests)
-- Redirect unauthenticated users to login page
-- Redirect unknown routes to login
-- Complete OAuth login flow
-- Show authenticated user info
-- Logout successfully
-- Open, close (ESC), and close (backdrop click) user info modal
+### Authentication (`auth.spec.ts` — 2 tests)
+- App loads authenticated and stores an EEN token (dev-bypass mode)
+- Unauthenticated load redirects to the Labs product page
 
 ### Camera Selection Modal (`camera-select.spec.ts` — 4 tests)
 - Display camera select button in sidebar
@@ -401,7 +394,7 @@ The project includes 51 Playwright E2E tests across 10 spec files:
 - Show camera info panel with details
 - Switch video player between cameras
 - Show camera status badges
-- Restore camera selection from URL after logout/login
+- Restore camera selection from URL after navigating away and back
 - Open Google Maps link and interact with camera data modal (Details/Settings/Bridge views)
 - Filter cameras by layout selection
 - Display exactly three cameras for test account
@@ -410,12 +403,12 @@ The project includes 51 Playwright E2E tests across 10 spec files:
 
 ### Dark Mode (`dark-mode.spec.ts` — 2 tests)
 - Toggle dark mode on/off and verify `dark` class on `<html>`
-- Dark mode URL parameter persistence through OAuth login flow
+- Dark mode URL parameter (`dark=1`) restores dark mode on fresh navigation
 
 ### Mute (`mute.spec.ts` — 3 tests)
 - Toggle mute on/off and verify icon/title changes
 - Mute URL parameter (`mute=1`) appears when muted, removed when unmuted
-- Mute state persists through OAuth login flow via sessionStorage
+- Mute state persists when navigating with the `mute=1` URL parameter (loaded via dev-bypass on fresh navigation)
 
 ### Event Types (`event-types.spec.ts` — 3 tests)
 - Toggle individual event types on/off with URL `events` parameter update
@@ -435,7 +428,7 @@ The project includes 51 Playwright E2E tests across 10 spec files:
 - Toggle event filter for alerts (verify `filter` URL parameter)
 
 ### URL State Persistence (`url-state.spec.ts` — 1 test)
-- Restore camera selection and event type filters from URL after logout/login
+- Restore camera selection and event type filters from URL after navigating away and back (dev-bypass re-authenticates on each load)
 
 ### QR Code Popup (`qr-code.spec.ts` — 6 tests)
 - QR icon hidden when no camera selected

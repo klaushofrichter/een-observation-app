@@ -23,8 +23,8 @@ Vue 3 single-page application for Eagle Eye Networks camera monitoring. Uses the
 
 - Tests run sequentially (`workers: 1`, `fullyParallel: false`), no retries, 60s timeout
 - E2E tests run in dev-bypass mode (`VITE_AUTH_MODE=dev`); requires `.env` with `VITE_DEV_EEN_TOKEN`, `VITE_DEV_EEN_BASE_URL`, `TEST_USER`, and `TEST_PASSWORD`. Tests are skipped when `VITE_DEV_EEN_TOKEN` is not set.
-- Auth state cached in `.auth-state.json` for reuse across specs
-- The `performLogin()` helper handles the 2-step OAuth flow (email → Next → password → Sign in) for the dev-bypass login page
+- Tests use `tests/helpers/auth.ts` `gotoAuthenticated()` which navigates and waits for the authenticated header to render; no auth-state caching is used
+- The `gotoAuthenticated(page, path?)` helper navigates to a path and waits for the authenticated header (dev-bypass injects the token automatically; no login UI is involved)
 - Dev server auto-starts via Playwright's `webServer` config unless already running
 
 ## Architecture
@@ -49,7 +49,7 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useVideoExport()` — Export job lifecycle with 10-min auto-clipping
 - `useImageCache()` — LRU cache (250 items) for event thumbnails, deduplicates in-flight requests
 - `useDarkMode()` — Reactive dark mode via `dark` class on `<html>`, persisted to localStorage
-- `useMute()` — Mute toggle persisted to localStorage, with sessionStorage through OAuth flow
+- `useMute()` — Mute toggle persisted to localStorage (`een_mute`); initial value can come from the `mute` URL param via the router guard
 - `useSseNotification()` — SSE event notification banner with Web Audio API beep sound
 - `useHlsPlayer()` — HLS.js player setup and teardown
 - `useBoundingBoxes()` — Object detection box data fetch/parse for overlays
@@ -59,7 +59,7 @@ Composables in `src/composables/` manage shared state as module-level singletons
 All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`, `full`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
 
 ### Dark Mode
-Toggles `dark` class on `<html>` element. Tailwind CSS scopes dark styles. Persists via localStorage (`een_dark_mode`) and sessionStorage through OAuth flow. URL param `dark=1` overrides stored preference.
+Toggles `dark` class on `<html>` element. Tailwind CSS scopes dark styles. Persists via localStorage (`een_dark_mode`). URL param `dark=1` overrides stored preference (the router guard saves the param to sessionStorage so it survives internal navigation).
 
 ## Environment
 
