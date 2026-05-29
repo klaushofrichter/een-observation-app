@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch, provide, onUnmounted } from 'vue'
 import { useAuthStore, getCurrentUser } from 'een-api-toolkit'
 import { useRoute } from 'vue-router'
+import { labsLogout } from '@/labs/labsAuth'
 import { useDarkMode } from '@/composables/useDarkMode'
 import { useMute } from '@/composables/useMute'
 import { useVideoExport } from '@/composables/useVideoExport'
@@ -23,6 +24,9 @@ const appName = ref('EEN Camera Observation App')
 const authStore = useAuthStore()
 const user = ref<UserProfile | null>(null)
 const route = useRoute()
+function onLogout(): void {
+  void labsLogout()
+}
 
 // Dark mode
 const { isDark, toggle: toggleDarkMode, setDark } = useDarkMode()
@@ -496,10 +500,7 @@ function onFullscreenChange() {
               {{ user.firstName }} {{ user.lastName }}
             </button>
             <span class="opacity-50">|</span>
-            <router-link to="/logout" class="hover:underline">Logout</router-link>
-          </template>
-          <template v-else-if="route.name !== 'login'">
-            <router-link to="/login" class="hover:underline">Login</router-link>
+            <button @click="onLogout" class="hover:underline cursor-pointer">Logout</button>
           </template>
         </div>
       </div>

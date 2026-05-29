@@ -11,6 +11,7 @@ import EventsPanel from '../components/EventsPanel.vue'
 import AlertsPanel from '../components/AlertsPanel.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
 import { eventTypesToHashString } from '@/utils/eventTypeHash'
+import { labsLogout } from '@/labs/labsAuth'
 
 // Inject dark mode and mute state
 const isDark = inject<Ref<boolean>>('isDark', ref(false))
@@ -423,7 +424,7 @@ onMounted(async () => {
 
   if (result.error) {
     if (result.error.code === 'AUTH_REQUIRED') {
-      router.push('/login')
+      void labsLogout()
       return
     }
     error.value = result.error
