@@ -27,12 +27,14 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
+        # Labs dev-bypass: specs skip cleanly unless VITE_DEV_EEN_TOKEN is set.
+        # Set the two secrets below to a current EEN access token + cluster base
+        # URL to exercise the suite in CI.
         run: npm test
         env:
-          VITE_EEN_CLIENT_ID: ${{ secrets.VITE_EEN_CLIENT_ID }}
-          VITE_PROXY_URL: ${{ secrets.VITE_PROXY_URL }}
-          TEST_USER: ${{ secrets.TEST_USER }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          VITE_AUTH_MODE: dev
+          VITE_DEV_EEN_TOKEN: ${{ secrets.VITE_DEV_EEN_TOKEN }}
+          VITE_DEV_EEN_BASE_URL: ${{ secrets.VITE_DEV_EEN_BASE_URL }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

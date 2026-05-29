@@ -7,8 +7,10 @@ declare module '*.vue' {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_EEN_CLIENT_ID: string
-  readonly VITE_PROXY_URL: string
+  readonly VITE_AUTH_MODE?: string
+  readonly VITE_LABS_BASE?: string
+  readonly VITE_DEV_EEN_TOKEN?: string
+  readonly VITE_DEV_EEN_BASE_URL?: string
 }
 
 interface ImportMeta {

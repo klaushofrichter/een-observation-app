@@ -27,8 +27,10 @@
 - ECR repository URL (`een-labs-observation-app`).
 - IAM role ARN (`een-labs-ecr-push-observation-app`) for GitHub OIDC.
 - Confirmed GitHub repo path for the OIDC trust policy.
-- `proxyTarget` wired to `http://observation-app.experiments.svc.cluster.local:8080`
-  after the first deploy.
+- `proxyTarget` wired to
+  `http://een-labs-observation-app.experiments.svc.cluster.local:8080`
+  after the first deploy. (The Helm chart names the Service after
+  `Chart.name` = `een-labs-observation-app`, which is also the ECR repo name.)
 
 ## Candidacy notes
 - Single auth-gated Service, no unauthenticated inbound paths (no webhooks).
