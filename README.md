@@ -103,9 +103,8 @@ The bottom section of the application contains three panels for event management
 - **ESC to Close** - Press Escape or click outside to close modals
 
 ### Authentication
-- **OAuth 2.0 Flow** - Secure login via Eagle Eye Networks OAuth
-- **Session Persistence** - Stay logged in across page refreshes using localStorage
-- **Token Auto-Refresh** - Automatic token renewal before expiration
+- **Brivo Labs Auth** - In production the app is deployed as a Labs Path B experiment; `labs-auth.js` gates the page and brokers an EEN vendor token automatically.
+- **Dev Bypass** - For local development set `VITE_AUTH_MODE=dev` with `VITE_DEV_EEN_TOKEN` and `VITE_DEV_EEN_BASE_URL` to skip Labs auth.
 
 ### User Interface
 - **Fullscreen Mode** - Click the app eye icon in the top-left corner to toggle browser fullscreen; press Escape to exit. Use `full=1` URL parameter to request fullscreen on load (shows a confirmation prompt)
@@ -235,8 +234,7 @@ Since browsers require a real user gesture for the Fullscreen API, a confirmatio
 
 ### URL Persistence
 
-- All URL parameters persist through the OAuth login flow
-- Parameters are stored in sessionStorage during authentication
+- All URL parameters persist through the login flow
 - Sharing a URL allows others to see the exact same view (after login)
 
 ## Technology Stack
@@ -249,7 +247,7 @@ Since browsers require a real user gesture for the Fullscreen API, a confirmatio
 - **API Integration:** [een-api-toolkit](https://www.npmjs.com/package/een-api-toolkit)
 - **Live Video:** @een/live-video-web-sdk
 - **Recorded Video:** hls.js
-- **Testing:** Playwright (E2E)
+- **Testing:** Vitest (unit) + Playwright (E2E)
 
 ## een-api-toolkit Functions Used
 
@@ -269,8 +267,8 @@ This application uses the following functions from [een-api-toolkit](https://git
 
 - Node.js 18+
 - An Eagle Eye Networks account
-- OAuth client credentials (client ID)
-- An OAuth proxy URL (see [een-api-toolkit documentation](https://www.npmjs.com/package/een-api-toolkit) or [een-oauth-proxy](https://github.com/klaushofrichter/een-oauth-proxy) for an implementation)
+- For **production**: the app is deployed as a Brivo Labs Path B experiment — see [docs/labs-onboarding-request.md](docs/labs-onboarding-request.md) and the [design spec](docs/superpowers/specs/2026-05-28-brivo-labs-integration-design.md).
+- For **local dev**: an EEN access token and API base URL (dev-bypass mode, no OAuth proxy needed)
 
 ## Setup
 
@@ -292,13 +290,18 @@ This application uses the following functions from [een-api-toolkit](https://git
    cp .env.example .env
    ```
 
-   Then edit `.env` with your actual values:
+   Then edit `.env` with your actual values for local dev-bypass mode:
    ```
-   VITE_PROXY_URL=https://your-oauth-proxy.workers.dev
-   VITE_EEN_CLIENT_ID=YOUR-CLIENT-ID
+   VITE_AUTH_MODE=dev
+   VITE_LABS_BASE=https://labs.eagleeyenetworks.com
+   VITE_DEV_EEN_TOKEN=your-een-access-token
+   VITE_DEV_EEN_BASE_URL=https://api.eagleeyenetworks.com
    TEST_USER=your-test-email@example.com
    TEST_PASSWORD=your-test-password
    ```
+
+   In production (Labs deployment) only `VITE_LABS_BASE` is needed; auth is handled by `labs-auth.js`.
+   `VITE_PROXY_URL` and `VITE_EEN_CLIENT_ID` are no longer used.
 
 4. **Start the development server**
    ```bash
@@ -314,7 +317,8 @@ This application uses the following functions from [een-api-toolkit](https://git
 | `npm run dev` | Start development server |
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
-| `npm test` | Run Playwright E2E tests |
+| `npm run test:unit` | Run Vitest unit tests |
+| `npm test` | Run Playwright E2E tests (requires dev-bypass token) |
 | `npm run test:e2e` | Run Playwright E2E tests (alias) |
 | `npm run test:ui` | Run Playwright tests with interactive UI |
 | `npm run test:headed` | Run Playwright tests in headed browser |
@@ -457,9 +461,9 @@ npx playwright test --list      # List all tests without running
 
 ## Configuration Notes
 
-### OAuth Redirect URI
+### Dev Server
 
-The app must run on `http://127.0.0.1:3333` to match the OAuth redirect URI configuration. The Vite config enforces this:
+For local development the dev server runs on `http://127.0.0.1:3333`. The Vite config enforces this:
 
 ```typescript
 server: {
@@ -469,22 +473,18 @@ server: {
 }
 ```
 
-### Router Guard Order
-
-The OAuth callback check must come BEFORE the auth check in the router guard. The EEN IDP redirects to the root path (`/`) with `code` and `state` query parameters.
-
 ### Production Build Base Path
 
-The Vite configuration uses a dynamic base path:
-
-```typescript
-base: command === 'build' ? '/een-observation-app/' : '/',
-```
+The Vite configuration uses a dynamic base path driven by `VITE_BASE_PATH`:
 
 - **Development** (`npm run dev`): Uses root path `/`
-- **Production** (`npm run build`): Uses `/een-observation-app/` for GitHub Pages deployment
+- **Production** (`npm run build`): Uses `/experiments/observation-app/` (Brivo Labs Path B)
 
-If deploying to a different location, update the base path in `vite.config.ts` accordingly.
+### Brivo Labs Deployment
+
+In production the app is deployed as a Labs Path B experiment. `labs-auth.js` (injected by the Labs SDK) gates access and brokers the EEN vendor token before the Vue app mounts. No OAuth proxy is needed. See:
+- [docs/labs-onboarding-request.md](docs/labs-onboarding-request.md) — onboarding checklist for Eric Janik
+- [docs/superpowers/specs/2026-05-28-brivo-labs-integration-design.md](docs/superpowers/specs/2026-05-28-brivo-labs-integration-design.md) — design spec
 
 ## Claude Code Agents
 

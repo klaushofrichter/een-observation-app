@@ -37,3 +37,6 @@ tests/screenshots/
 
 # Misc
 prompt.txt
+
+# Packaged Helm charts
+*.tgz
