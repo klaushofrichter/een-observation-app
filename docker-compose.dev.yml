@@ -1,0 +1,17 @@
+# Local dev container in dev-bypass auth mode.
+# Provide a real EEN token in a .env file:
+#   VITE_DEV_EEN_TOKEN=<an EEN access JWT>
+#   VITE_DEV_EEN_BASE_URL=https://api.cXXX.eagleeyenetworks.com
+services:
+  observation-app:
+    build:
+      context: .
+      args:
+        # Serve at root for simple local access (no Labs prefix).
+        VITE_BASE_PATH: /
+    ports:
+      - "3333:8080"
+    environment:
+      VITE_AUTH_MODE: dev
+      VITE_DEV_EEN_TOKEN: ${VITE_DEV_EEN_TOKEN}
+      VITE_DEV_EEN_BASE_URL: ${VITE_DEV_EEN_BASE_URL}
