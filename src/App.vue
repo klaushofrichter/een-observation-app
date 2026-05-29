@@ -221,8 +221,12 @@ onMounted(() => {
   authStore.initialize()
   loadUser()
 
-  // Check for dark mode URL parameter (overrides localStorage)
-  const urlDark = sessionStorage.getItem('een_url_dark')
+  // Check for dark mode URL parameter (overrides localStorage).
+  // Read the live URL first — on the initial page load the router guard that
+  // mirrors the param into sessionStorage may not have run yet — then fall
+  // back to sessionStorage (set by the guard on subsequent navigations).
+  const urlDark = new URLSearchParams(window.location.search).get('dark')
+    ?? sessionStorage.getItem('een_url_dark')
   if (urlDark === '1') {
     setDark(true)
   } else if (urlDark === '0') {
@@ -242,8 +246,11 @@ onMounted(() => {
     }
   }
 
-  // Check for mute URL parameter (overrides localStorage)
-  const urlMute = sessionStorage.getItem('een_url_mute')
+  // Check for mute URL parameter (overrides localStorage). Read the live URL
+  // first (see the dark-mode note above re: initial-load guard timing), then
+  // fall back to sessionStorage.
+  const urlMute = new URLSearchParams(window.location.search).get('mute')
+    ?? sessionStorage.getItem('een_url_mute')
   if (urlMute === '1') {
     setMuted(true)
   } else if (urlMute === '0') {
