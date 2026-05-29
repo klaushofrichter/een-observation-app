@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import dotenv from 'dotenv'
 import { gotoAuthenticated, hasDevToken } from './helpers/auth'
 
@@ -17,7 +17,7 @@ const TIMEOUTS = {
   UI_UPDATE: 10000
 } as const
 
-async function openUserInfoModal(page: import('@playwright/test').Page): Promise<void> {
+async function openUserInfoModal(page: Page): Promise<void> {
   const usernameButton = page.locator('header button[title="View user info and API details"]')
   await expect(usernameButton).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
   await usernameButton.click()
