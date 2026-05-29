@@ -1,0 +1,51 @@
+name: build-and-push
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  REPO: een-labs-observation-app
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # TODO(onboarding): replace with the IAM role ARN from terraform output.
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/een-labs-ecr-push-observation-app
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          make deployment-image IMAGE_TAG=$TAG
+          docker tag observation-app:$TAG $REGISTRY/$REPO:$TAG
+          docker tag observation-app:$TAG $REGISTRY/$REPO:latest
+          docker push $REGISTRY/$REPO:$TAG
+          docker push $REGISTRY/$REPO:latest
+
+      - name: Package and push Helm chart (OCI)
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            CHART_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            CHART_VERSION="0.0.0-main.$(git rev-parse --short HEAD)"
+          fi
+          helm package charts/observation-app --version "$CHART_VERSION" --app-version "$CHART_VERSION"
+          helm push "een-labs-observation-app-${CHART_VERSION}.tgz" "oci://$REGISTRY"
