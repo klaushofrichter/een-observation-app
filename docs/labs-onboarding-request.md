@@ -15,11 +15,14 @@
 
 ## Access
 - **Model:** account-level grant.
-- **Initial account to enroll:** <EEN_ACCOUNT_ID>  <!-- TODO: fill in -->
+- **Initial account to enroll:** khofrichter@een.com
 
 ## Hosting / CI
-- **GitHub org/repo:** <ORG>/<REPO>  <!-- TODO: confirm EENCloud vs current org; see spec risk #3 -->
-- **Repo created by:** <you | platform team>  <!-- TODO -->
+- **GitHub org/repo:** `klaushofrichter/een-observation-app` — the Labs Path B
+  work currently lives on branch `feature/brivo-labs-integration` (not yet
+  merged to `develop`). Please scope the OIDC trust policy to this org/repo
+  (it is not under the `EENCloud` org).
+- **Repo created by:** klaushofrichter (the repo already exists).
 - Container listens on `0.0.0.0:8080`. Helm chart at `charts/observation-app/`,
   Service name `een-labs-observation-app`, port 8080.
 
