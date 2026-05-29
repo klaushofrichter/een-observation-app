@@ -23,9 +23,12 @@ async function start(): Promise<void> {
     mounted = await bootstrapAuth()
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    document.body.innerHTML =
-      `<div style="font-family:sans-serif;padding:2rem;color:#b91c1c">` +
-      `Authentication failed to initialize: ${message}</div>`
+    const el = document.createElement('div')
+    el.style.fontFamily = 'sans-serif'
+    el.style.padding = '2rem'
+    el.style.color = '#b91c1c'
+    el.textContent = `Authentication failed to initialize: ${message}`
+    document.body.replaceChildren(el)
     return
   }
 

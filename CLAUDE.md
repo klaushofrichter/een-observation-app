@@ -12,7 +12,7 @@ Vue 3 single-page application for Eagle Eye Networks camera monitoring. Uses the
 |---------|-------------|
 | `npm run dev` | Start dev server at `http://127.0.0.1:3333` (kills existing port 3333 process first) |
 | `npm run build` | Type-check with `vue-tsc --noEmit` then build with Vite |
-| `npm test` | Run all 51 Playwright E2E tests (requires dev server + OAuth proxy) |
+| `npm test` | Run all Playwright E2E tests (requires dev server + OAuth proxy) |
 | `npx playwright test tests/events.spec.ts` | Run a single test file |
 | `npx playwright test -g "should toggle dark mode"` | Run a single test by name |
 | `npx playwright test --ui` | Interactive Playwright UI |
@@ -50,6 +50,8 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useMute()` — Mute toggle persisted to localStorage, with sessionStorage through OAuth flow
 - `useSseNotification()` — SSE event notification banner with Web Audio API beep sound
 - `useHlsPlayer()` — HLS.js player setup and teardown
+- `useBoundingBoxes()` — Object detection box data fetch/parse for overlays
+- `useEventAge()` — Shared ticking clock for relative "X seconds ago" event timestamps
 
 ### URL State
 All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`, `full`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction.
