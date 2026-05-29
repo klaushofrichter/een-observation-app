@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 import dotenv from 'dotenv'
+import { gotoAuthenticated, hasDevToken } from './helpers/auth'
 
 dotenv.config()
 
@@ -19,103 +20,19 @@ dotenv.config()
  */
 
 const TIMEOUTS = {
-  OAUTH_REDIRECT: 30000,
-  ELEMENT_VISIBLE: 15000,
-  PASSWORD_VISIBLE: 10000,
-  AUTH_COMPLETE: 60000,
   UI_UPDATE: 10000,
   CAMERA_LOAD: 20000,
   EVENTS_LOAD: 15000,
-  SSE_CONNECT: 10000,
-  PROXY_CHECK: 5000
+  SSE_CONNECT: 10000
 } as const
 
-const TEST_USER = process.env.TEST_USER
-const TEST_PASSWORD = process.env.TEST_PASSWORD
-const PROXY_URL = process.env.VITE_PROXY_URL
-
-async function isProxyAccessible(): Promise<boolean> {
-  if (!PROXY_URL) return false
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.PROXY_CHECK)
-
-  try {
-    const response = await fetch(PROXY_URL, {
-      method: 'HEAD',
-      signal: controller.signal
-    })
-    return response.ok || response.status === 404
-  } catch {
-    return false
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
-
-async function performLogin(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/login')
-  await page.click('button:has-text("Login with Eagle Eye Networks")')
-  await page.waitForURL(/.*eagleeyenetworks.com.*/, { timeout: TIMEOUTS.OAUTH_REDIRECT })
-
-  const emailInput = page.locator('#authentication--input__email, input[type="email"], input[type="text"]').first()
-  await emailInput.waitFor({ state: 'visible', timeout: TIMEOUTS.ELEMENT_VISIBLE })
-  await emailInput.fill(username)
-  await page.getByRole('button', { name: 'Next' }).click()
-
-  const passwordInput = page.locator('#authentication--input__password, input[type="password"]')
-  await passwordInput.waitFor({ state: 'visible', timeout: TIMEOUTS.PASSWORD_VISIBLE })
-  await passwordInput.fill(password)
-  await page.locator('#next, button:has-text("Sign in")').first().click()
-
-  await page.waitForURL(/127\.0\.0\.1:3333/, { timeout: TIMEOUTS.AUTH_COMPLETE })
-  await page.waitForURL('**/', { timeout: TIMEOUTS.AUTH_COMPLETE })
-}
-
-async function clearAuthState(page: Page): Promise<void> {
-  try {
-    const url = page.url()
-    if (url && url.startsWith('http')) {
-      await page.evaluate(() => {
-        try {
-          localStorage.clear()
-          sessionStorage.clear()
-        } catch {
-          // Ignore
-        }
-      })
-    }
-  } catch {
-    // Ignore
-  }
-}
-
 test.describe('Events System', () => {
-  let proxyAccessible = false
-
-  function skipIfNoProxy() {
-    test.skip(!proxyAccessible, 'OAuth proxy not accessible')
-  }
-
-  function skipIfNoCredentials() {
-    test.skip(!TEST_USER || !TEST_PASSWORD, 'Test credentials not available')
-  }
-
-  test.beforeAll(async () => {
-    proxyAccessible = await isProxyAccessible()
-    if (!proxyAccessible) {
-      console.log('OAuth proxy not accessible - events tests will be skipped')
-    }
-  })
-
-  test.afterEach(async ({ page }) => {
-    await clearAuthState(page)
+  test.beforeEach(() => {
+    test.skip(!hasDevToken(), 'Dev-bypass token not configured (VITE_DEV_EEN_TOKEN)')
   })
 
   test('should display events section with three panels', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera to load (events depend on selected camera)
     const sidebar = page.locator('.camera-sidebar')
@@ -140,10 +57,7 @@ test.describe('Events System', () => {
   })
 
   test('should show event type toggles with motion detection preselected', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for events to load
     const eventTypesPanel = page.locator('.event-types-panel')
@@ -168,10 +82,7 @@ test.describe('Events System', () => {
   })
 
   test('should toggle event types on/off', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     const eventTypesPanel = page.locator('.event-types-panel')
     await expect(eventTypesPanel).toBeVisible({ timeout: TIMEOUTS.UI_UPDATE })
@@ -199,10 +110,7 @@ test.describe('Events System', () => {
   })
 
   test('should show events panel content', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -235,10 +143,7 @@ test.describe('Events System', () => {
   })
 
   test('should show alerts panel with controls', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -265,10 +170,7 @@ test.describe('Events System', () => {
   })
 
   test('should change events time range', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -302,10 +204,7 @@ test.describe('Events System', () => {
   })
 
   test('should toggle auto-refresh checkbox in events panel', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -354,10 +253,7 @@ test.describe('Events System', () => {
   })
 
   test('should toggle live events button', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -404,10 +300,7 @@ test.describe('Events System', () => {
   })
 
   test('should change alerts time range', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
@@ -433,10 +326,7 @@ test.describe('Events System', () => {
   })
 
   test('should toggle event filter for alerts', async ({ page }) => {
-    skipIfNoProxy()
-    skipIfNoCredentials()
-
-    await performLogin(page, TEST_USER!, TEST_PASSWORD!)
+    await gotoAuthenticated(page)
 
     // Wait for camera selection
     const sidebar = page.locator('.camera-sidebar')
