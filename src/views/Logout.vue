@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { revokeToken } from 'een-api-toolkit'
-import { clearUrlSessionStorage } from '@/utils/clearUrlSessionStorage'
+import { clearUrlSessionStorage } from '@/utils/urlState'
 
 const router = useRouter()
 const processing = ref(true)
