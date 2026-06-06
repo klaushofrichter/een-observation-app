@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useAuthStore, getEvent, getCamera, getCameraSettings, getBridge, getDataSchemasForEventType, movePtz, getPtzSettings, getPtzPosition } from 'een-api-toolkit'
-import type { Camera, CameraStatus, PtzDirection, PtzPreset, PtzPositionResponse } from 'een-api-toolkit'
+import type { Camera, PtzDirection, PtzPreset, PtzPositionResponse } from 'een-api-toolkit'
+import { getCameraStatusString, isCameraOnline, statusBadgeClass } from '@/utils/cameraStatus'
 import LivePlayer from '@een/live-video-web-sdk'
 import { useHlsPlayer } from '@/composables/useHlsPlayer'
 import { useVideoExport } from '@/composables/useVideoExport'
@@ -452,21 +453,8 @@ async function handleDownloadClick(e: Event) {
   }
 }
 
-// Helper to extract status string from the union type
-function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
-  if (!status) return undefined
-  if (typeof status === 'string') return status
-  return status.connectionStatus
-}
-
-// Check if camera is in a viewable state
-function isCameraOnline(status?: CameraStatus | { connectionStatus?: CameraStatus }): boolean {
-  const statusStr = getStatusString(status)
-  return statusStr === 'online' || statusStr === 'streaming' || statusStr === 'registered'
-}
-
 // Computed status values
-const statusString = computed(() => getStatusString(props.camera.status))
+const statusString = computed(() => getCameraStatusString(props.camera.status))
 
 // Google Maps URL from camera devicePosition
 const googleMapsUrl = computed(() => {
@@ -490,23 +478,7 @@ const googleMapsTooltip = computed(() => {
 const isOnline = computed(() => isCameraOnline(props.camera.status))
 
 // Status badge styling
-const statusClass = computed(() => {
-  const statusStr = statusString.value
-  switch (statusStr) {
-    case 'online':
-    case 'streaming':
-      return 'bg-green-500'
-    case 'offline':
-    case 'deviceOffline':
-    case 'bridgeOffline':
-      return 'bg-gray-500'
-    case 'error':
-    case 'invalidCredentials':
-      return 'bg-red-500'
-    default:
-      return 'bg-yellow-500'
-  }
-})
+const statusClass = computed(() => statusBadgeClass(props.camera.status))
 
 // Format playback timestamp for display in local timezone
 const formattedPlaybackTimestamp = computed(() => {

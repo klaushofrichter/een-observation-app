@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { listFeeds, initMediaSession, getCamera } from 'een-api-toolkit'
-import type { Camera, CameraStatus, Feed } from 'een-api-toolkit'
+import type { Camera, Feed } from 'een-api-toolkit'
+import { getCameraStatusString, isCameraOnline, statusBadgeClass } from '@/utils/cameraStatus'
 
 const props = defineProps<{
   camera: Camera
@@ -74,41 +75,12 @@ function handleImageError() {
   }
 }
 
-// Helper to extract status string from the union type
-function getStatusString(status?: CameraStatus | { connectionStatus?: CameraStatus }): CameraStatus | undefined {
-  if (!status) return undefined
-  if (typeof status === 'string') return status
-  return status.connectionStatus
-}
-
-// Check if camera is in a viewable state
-function isCameraOnline(status?: CameraStatus | { connectionStatus?: CameraStatus }): boolean {
-  const statusStr = getStatusString(status)
-  return statusStr === 'online' || statusStr === 'streaming' || statusStr === 'registered'
-}
-
 // Computed status values
-const statusString = computed(() => getStatusString(props.camera.status))
+const statusString = computed(() => getCameraStatusString(props.camera.status))
 const isOnline = computed(() => isCameraOnline(props.camera.status))
 
 // Status badge styling
-const statusClass = computed(() => {
-  const statusStr = statusString.value
-  switch (statusStr) {
-    case 'online':
-    case 'streaming':
-      return 'bg-green-500'
-    case 'offline':
-    case 'deviceOffline':
-    case 'bridgeOffline':
-      return 'bg-gray-500'
-    case 'error':
-    case 'invalidCredentials':
-      return 'bg-red-500'
-    default:
-      return 'bg-yellow-500'
-  }
-})
+const statusClass = computed(() => statusBadgeClass(props.camera.status))
 
 // Stop the retry timer for offline cameras
 function stopRetryTimer() {

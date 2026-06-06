@@ -13,6 +13,7 @@ import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
+import { humanizeEenType } from '@/utils/eenTypeName'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
@@ -163,18 +164,7 @@ async function fetchEventTypeNames() {
 
 // Get human-readable event type name
 function getEventTypeName(type: string): string {
-  const name = eventTypeNames.value.get(type)
-  if (name) return name
-
-  // Fallback: parse the type string
-  const match = type.match(/een\.(\w+)Event\.v\d+/)
-  if (match) {
-    return match[1]
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  }
-  return type
+  return eventTypeNames.value.get(type) ?? humanizeEenType(type)
 }
 
 // Get formatted duration from event start/end timestamps
@@ -472,7 +462,7 @@ async function reconnect() {
     subscriptionId.value = null
   }
 
-  await connectWithoutClearingEvents()
+  await connect()
   isProactiveReconnecting = false
 }
 
@@ -514,19 +504,6 @@ function handleSseError(error: Error) {
 
 // Connect to SSE stream
 async function connect() {
-  if (!props.camera || props.selectedTypes.length === 0) return
-
-  connectionAttemptId++
-  const currentAttemptId = connectionAttemptId
-
-  connectionStatus.value = 'connecting'
-  connectionError.value = null
-
-  await createAndConnectSubscription(currentAttemptId)
-}
-
-// Connect without clearing events (for proactive reconnection)
-async function connectWithoutClearingEvents() {
   if (!props.camera || props.selectedTypes.length === 0) return
 
   connectionAttemptId++
