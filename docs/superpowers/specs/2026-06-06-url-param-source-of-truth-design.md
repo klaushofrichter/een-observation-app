@@ -127,9 +127,14 @@ This fixes #74: `mute` is restored identically to every other param.
 
 ## Testing
 
-- **Existing coverage:** `tests/url-state.spec.ts` and the auth spec's "restore camera selection from URL after logout and login" exercise the save/restore round-trip — primary regression signal.
-- **New:** an E2E regression test for #74 — a `mute` URL param survives the OAuth login round-trip.
-- Verification is via the Playwright suite + `vue-tsc --noEmit` (no Vitest in this project).
+The three new functions are pure and side-effect-isolated (only touch `sessionStorage`), so they get **unit tests via a newly-added minimal Vitest setup** — genuine TDD red-green, fast, no real OAuth required.
+
+- **New unit tests** (`src/utils/urlState.test.ts`, run with Vitest): cover `saveQueryToSession` (truthy vs. defined presence rules, the `id → een_url_camera_ids` mapping, removal of absent keys), `clearUrlSessionStorage` (all keys removed), and `restoreQueryFromSession` (round-trip, null when empty, **and that `mute` is included** — the #74 guard). `sessionStorage` is stubbed with a small in-memory mock (no jsdom dependency).
+- **Vitest infra:** add `vitest` dev dependency, a standalone `vitest.config.ts` (node environment, `@` alias, `include: ['src/**/*.test.ts']`), and a `test:unit` script. Unit tests are colocated in `src/` (not under `tests/`, whose `*.test.ts` files would otherwise be grabbed by Playwright's `testDir: './tests'`). The existing `test` script stays bound to Playwright; unit and E2E remain separate.
+- **Existing E2E coverage:** `tests/url-state.spec.ts` (login → set state → logout → re-login → assert restored) is the integration safety net and must stay green — it exercises the real Callback restore path end-to-end.
+- Full verification: `npm run test:unit`, the Playwright suite, and `vue-tsc --noEmit`.
+
+Note: #74 is a latent code inconsistency that is masked at runtime (App.vue independently applies `een_url_mute` on mount and `updateUrl` re-adds it), so its observable behavior is unchanged. The unit test guards that `restoreQueryFromSession` includes `mute`, locking the Callback path's correctness regardless of App.vue.
 
 ## Follow-ups
 
