@@ -103,4 +103,10 @@ describe('restoreQueryFromSession', () => {
     sessionStorage.setItem('een_url_mute', '1')
     expect(restoreQueryFromSession()?.mute).toBe('1')
   })
+
+  it("round-trips '0' for defined-presence params (the value the 'defined' rule protects)", () => {
+    saveQueryToSession({ dark: '0', mute: '0', full: '0' })
+    const restored = restoreQueryFromSession()
+    expect(restored).toMatchObject({ dark: '0', mute: '0', full: '0' })
+  })
 })

@@ -14,6 +14,13 @@ export interface UrlParamDescriptor {
 }
 
 // Single source of truth for the URL params that persist through the OAuth redirect.
+//
+// Scope note: this table currently drives only the save/restore/clear path (the
+// router guard and the OAuth callback). The *consume* sites that read these values
+// back into app state — Home.vue (initialX getters / updateUrl), App.vue (dark/mute),
+// and CameraSidebar.vue — still reference the `een_url_*` keys directly. Migrating
+// those to read from this table is tracked in issue #69. Until then, adding a param
+// means updating both this table and those consumers.
 export const URL_PARAMS: UrlParamDescriptor[] = [
   { query: 'id',       storageKey: 'een_url_camera_ids', presence: 'truthy'  },
   { query: 'selected', storageKey: 'een_url_selected',   presence: 'truthy'  },
@@ -35,7 +42,9 @@ export function saveQueryToSession(query: LocationQuery): void {
     const value = query[p.query]
     const present = p.presence === 'defined' ? value !== undefined : Boolean(value)
     if (present) {
-      sessionStorage.setItem(p.storageKey, value as string)
+      // value is string|null|string[] from LocationQuery; coerce explicitly.
+      // In practice these params are always single strings.
+      sessionStorage.setItem(p.storageKey, String(value))
     } else {
       sessionStorage.removeItem(p.storageKey)
     }
@@ -54,6 +63,9 @@ export function restoreQueryFromSession(): Record<string, string> | null {
   const query: Record<string, string> = {}
   for (const p of URL_PARAMS) {
     const stored = sessionStorage.getItem(p.storageKey)
+    // Truthy check mirrors the original restore behavior. A 'defined' param stored
+    // as an empty string ('') would be skipped here, but in practice these params
+    // only ever hold '0'/'1' (truthy), so '0' round-trips correctly.
     if (stored) query[p.query] = stored
   }
   return Object.keys(query).length > 0 ? query : null

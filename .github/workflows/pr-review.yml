@@ -1,3 +1,12 @@
+# Claude Code Review
+#
+# Uses the `pull_request` trigger (not `pull_request_target`) so PRs from forks
+# run with a read-only GITHUB_TOKEN — this avoids the "pwn-request" class of
+# attack. Consequence: for PRs opened from a fork, the "Post Review Comment" step
+# cannot write a comment (GITHUB_TOKEN is read-only there) and will fail/skip
+# silently. This repo's flow uses same-repo branches (feature -> develop ->
+# production), where commenting works. If external/fork contributions are ever
+# expected, revisit the trigger and permissions model.
 name: Claude Code Review
 
 on:
