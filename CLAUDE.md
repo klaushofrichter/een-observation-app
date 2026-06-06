@@ -12,6 +12,7 @@ Vue 3 single-page application for Eagle Eye Networks camera monitoring. Uses the
 |---------|-------------|
 | `npm run dev` | Start dev server at `http://127.0.0.1:3333` (kills existing port 3333 process first) |
 | `npm run build` | Type-check with `vue-tsc --noEmit` then build with Vite |
+| `npm run test:unit` | Run Vitest unit tests (colocated `src/**/*.test.ts`, e.g. `urlState`) |
 | `npm test` | Run all 51 Playwright E2E tests across 10 spec files (requires dev server + OAuth proxy) |
 | `npx playwright test tests/events.spec.ts` | Run a single test file |
 | `npx playwright test -g "should toggle dark mode"` | Run a single test by name |
@@ -52,7 +53,7 @@ Composables in `src/composables/` manage shared state as module-level singletons
 - `useHlsPlayer()` — HLS.js player setup and teardown
 
 ### URL State
-All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`, `full`). Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction. Because all state lives in the URL, `App.vue` renders a QR code (via the `qrcode` package) of the current URL so the exact view can be opened on another device.
+All view state is encoded in URL params (`id`, `selected`, `events`, `ed`, `ad`, `er`, `ar`, `live`, `filter`, `dark`, `mute`, `full`). The param set is defined once in `src/utils/urlState.ts` (`URL_PARAMS`), which the router guard and OAuth callback use to persist params to `sessionStorage` (keys `een_url_*`) before the redirect and restore them after login. Event types use 3-char DJB2 base62 hashes (see `src/utils/eventTypeHash.ts`). URL auto-updates on user interaction. Because all state lives in the URL, `App.vue` renders a QR code (via the `qrcode` package) of the current URL so the exact view can be opened on another device.
 
 ### Dark Mode
 Toggles `dark` class on `<html>` element. Tailwind CSS scopes dark styles. Persists via localStorage (`een_dark_mode`) and sessionStorage through OAuth flow. URL param `dark=1` overrides stored preference.
