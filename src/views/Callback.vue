@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { handleAuthCallback } from 'een-api-toolkit'
+import { restoreQueryFromSession } from '@/utils/urlState'
 
 const router = useRouter()
 const error = ref<string | null>(null)
@@ -33,36 +34,9 @@ onMounted(async () => {
     return
   }
 
-  // Restore URL parameters from sessionStorage if they were set before OAuth redirect
-  const storedCameraIds = sessionStorage.getItem('een_url_camera_ids')
-  const storedSelected = sessionStorage.getItem('een_url_selected')
-  const storedEvents = sessionStorage.getItem('een_url_events')
-  const storedEd = sessionStorage.getItem('een_url_ed')
-  const storedAd = sessionStorage.getItem('een_url_ad')
-  const storedEr = sessionStorage.getItem('een_url_er')
-  const storedAr = sessionStorage.getItem('een_url_ar')
-  const storedLive = sessionStorage.getItem('een_url_live')
-  const storedFilter = sessionStorage.getItem('een_url_filter')
-  const storedDark = sessionStorage.getItem('een_url_dark')
-  const storedFull = sessionStorage.getItem('een_url_full')
-
-  if (storedCameraIds || storedSelected || storedEvents || storedEd || storedAd || storedEr || storedAr || storedLive || storedFilter || storedDark || storedFull) {
-    const query: Record<string, string> = {}
-    if (storedCameraIds) query.id = storedCameraIds
-    if (storedSelected) query.selected = storedSelected
-    if (storedEvents) query.events = storedEvents
-    if (storedEd) query.ed = storedEd
-    if (storedAd) query.ad = storedAd
-    if (storedEr) query.er = storedEr
-    if (storedAr) query.ar = storedAr
-    if (storedLive) query.live = storedLive
-    if (storedFilter) query.filter = storedFilter
-    if (storedDark) query.dark = storedDark
-    if (storedFull) query.full = storedFull
-    router.push({ path: '/', query })
-  } else {
-    router.push('/')
-  }
+  // Restore URL parameters saved before the OAuth redirect (includes mute, fixing #74)
+  const restoredQuery = restoreQueryFromSession()
+  router.push(restoredQuery ? { path: '/', query: restoredQuery } : '/')
 })
 </script>
 

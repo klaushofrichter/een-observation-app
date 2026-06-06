@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from 'een-api-toolkit'
-import { clearUrlSessionStorage } from '@/utils/clearUrlSessionStorage'
+import { saveQueryToSession } from '@/utils/urlState'
 import Home from '../views/Home.vue'
 import Login from '../views/Login.vue'
 import Callback from '../views/Callback.vue'
@@ -74,98 +74,10 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  // Handle URL parameters
-  // Store them in sessionStorage so they persist through the OAuth flow but not across sessions
+  // Handle URL parameters: persist them to sessionStorage so they survive the
+  // OAuth redirect but not across sessions. Saving an empty query removes all keys.
   if (to.path === '/') {
-    // When navigating with no URL parameters, clear all stored URL parameters
-    if (Object.keys(to.query).length === 0) {
-      clearUrlSessionStorage()
-    }
-
-    if (to.query.id) {
-      // Store camera IDs from URL
-      sessionStorage.setItem('een_url_camera_ids', to.query.id as string)
-    } else {
-      // Clear stored camera IDs when accessing without ?id parameter
-      sessionStorage.removeItem('een_url_camera_ids')
-    }
-
-    // Store selected camera ID
-    if (to.query.selected) {
-      sessionStorage.setItem('een_url_selected', to.query.selected as string)
-    } else {
-      sessionStorage.removeItem('een_url_selected')
-    }
-
-    // Store event type hashes
-    if (to.query.events) {
-      sessionStorage.setItem('een_url_events', to.query.events as string)
-    } else {
-      sessionStorage.removeItem('een_url_events')
-    }
-
-    // Store events duration (ed)
-    if (to.query.ed) {
-      sessionStorage.setItem('een_url_ed', to.query.ed as string)
-    } else {
-      sessionStorage.removeItem('een_url_ed')
-    }
-
-    // Store alerts duration (ad)
-    if (to.query.ad) {
-      sessionStorage.setItem('een_url_ad', to.query.ad as string)
-    } else {
-      sessionStorage.removeItem('een_url_ad')
-    }
-
-    // Store events auto-refresh (er)
-    if (to.query.er) {
-      sessionStorage.setItem('een_url_er', to.query.er as string)
-    } else {
-      sessionStorage.removeItem('een_url_er')
-    }
-
-    // Store alerts auto-refresh (ar)
-    if (to.query.ar) {
-      sessionStorage.setItem('een_url_ar', to.query.ar as string)
-    } else {
-      sessionStorage.removeItem('een_url_ar')
-    }
-
-    // Store live events toggle (live)
-    if (to.query.live) {
-      sessionStorage.setItem('een_url_live', to.query.live as string)
-    } else {
-      sessionStorage.removeItem('een_url_live')
-    }
-
-    // Store event filter for alerts (filter)
-    if (to.query.filter) {
-      sessionStorage.setItem('een_url_filter', to.query.filter as string)
-    } else {
-      sessionStorage.removeItem('een_url_filter')
-    }
-
-    // Store dark mode (dark)
-    if (to.query.dark !== undefined) {
-      sessionStorage.setItem('een_url_dark', to.query.dark as string)
-    } else {
-      sessionStorage.removeItem('een_url_dark')
-    }
-
-    // Store mute (mute)
-    if (to.query.mute !== undefined) {
-      sessionStorage.setItem('een_url_mute', to.query.mute as string)
-    } else {
-      sessionStorage.removeItem('een_url_mute')
-    }
-
-    // Store fullscreen (full)
-    if (to.query.full !== undefined) {
-      sessionStorage.setItem('een_url_full', to.query.full as string)
-    } else {
-      sessionStorage.removeItem('een_url_full')
-    }
+    saveQueryToSession(to.query)
   }
 
   if (to.meta.requiresAuth && !isAuthenticated()) {

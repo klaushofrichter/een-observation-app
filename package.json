@@ -1,6 +1,6 @@
 {
   "name": "een-camera-observation-app",
-  "version": "1.0.59",
+  "version": "1.0.64",
   "type": "module",
   "scripts": {
     "dev": "lsof -ti:3333 2>/dev/null | xargs kill -9 2>/dev/null; vite",
@@ -10,6 +10,7 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
+    "test:unit": "vitest run",
     "prepare": "husky"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "husky": "^9.1.7",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "vitest": "^3.2.6",
     "vue-tsc": "^2.2.12"
   }
 }
