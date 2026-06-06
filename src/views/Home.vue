@@ -363,7 +363,6 @@ const selectedEventTypes = ref<string[]>([])
 
 // References for cross-panel communication
 const eventsPanelRef = ref<InstanceType<typeof EventsPanel> | null>(null)
-const alertsPanelRef = ref<InstanceType<typeof AlertsPanel> | null>(null)
 
 // Handle event type selection changes
 function handleEventTypesUpdate(types: string[]) {
@@ -552,7 +551,6 @@ watch(isMuted, () => {
             <!-- Alerts Panel -->
             <div class="flex-1 min-w-0 p-3">
               <AlertsPanel
-                ref="alertsPanelRef"
                 :camera="selectedCamera"
                 :selected-types="selectedEventTypes"
                 :is-dark="isDark"
