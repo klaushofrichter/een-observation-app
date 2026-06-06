@@ -16,9 +16,16 @@ on:
       - develop
     types: [opened, synchronize, reopened]
 
+# Cancel an in-progress review when a newer commit is pushed to the same PR,
+# so rapid pushes don't pile up overlapping runs and duplicate review comments.
+concurrency:
+  group: claude-review-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   review:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write

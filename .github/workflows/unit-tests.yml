@@ -1,0 +1,39 @@
+name: Unit Tests
+
+# Runs the Vitest unit suite on PRs into develop and production. Unit tests are
+# fast and need no secrets, so they gate PRs earlier than the (production-only,
+# OAuth-dependent) E2E job. Also type-checks so colocated *.test.ts files are
+# verified against the build the same way `npm run build` does.
+on:
+  pull_request:
+    branches:
+      - production
+      - develop
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx vue-tsc --noEmit
+
+      - name: Run unit tests
+        run: npm run test:unit
