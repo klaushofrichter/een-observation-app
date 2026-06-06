@@ -15,6 +15,7 @@ interface AlertWithNotification extends Alert {
 }
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
+import { humanizeEenType } from '@/utils/eenTypeName'
 
 const props = defineProps<{
   camera: Camera | null
@@ -148,17 +149,9 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-// Get human-readable alert type name
+// Get human-readable alert type name (e.g. "een.motionDetectionAlert.v1" -> "Motion Detection")
 function getAlertTypeName(type: string): string {
-  // Parse the type string (e.g., "een.motionDetectionAlert.v1" -> "Motion Detection")
-  const match = type.match(/een\.(\w+)Alert\.v\d+/)
-  if (match) {
-    return match[1]
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  }
-  return type
+  return humanizeEenType(type)
 }
 
 // Handle alert click - emit alert data for display (exclude notifications as they're accessible via icons)

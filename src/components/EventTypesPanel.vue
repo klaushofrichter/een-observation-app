@@ -3,6 +3,7 @@ import { ref, watch, computed, onMounted } from 'vue'
 import { listEventFieldValues, listEventTypes } from 'een-api-toolkit'
 import type { Camera, EenError } from 'een-api-toolkit'
 import { buildHashLookup, hashStringToEventTypes } from '@/utils/eventTypeHash'
+import { humanizeEenType } from '@/utils/eenTypeName'
 
 const props = defineProps<{
   camera: Camera | null
@@ -52,18 +53,7 @@ async function fetchEventTypeNames() {
 
 // Get human-readable event type name
 function getEventTypeName(type: string): string {
-  const name = eventTypeNames.value.get(type)
-  if (name) return name
-
-  // Fallback: parse the type string
-  const match = type.match(/een\.(\w+)Event\.v\d+/)
-  if (match) {
-    return match[1]
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  }
-  return type
+  return eventTypeNames.value.get(type) ?? humanizeEenType(type)
 }
 
 // Short name for display in tight spaces
