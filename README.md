@@ -314,6 +314,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 | `npm run dev` | Start development server |
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
+| `npm run test:unit` | Run Vitest unit tests |
 | `npm test` | Run Playwright E2E tests |
 | `npm run test:e2e` | Run Playwright E2E tests (alias) |
 | `npm run test:ui` | Run Playwright tests with interactive UI |
