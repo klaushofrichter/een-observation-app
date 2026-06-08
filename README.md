@@ -249,7 +249,7 @@ Since browsers require a real user gesture for the Fullscreen API, a confirmatio
 - **API Integration:** [een-api-toolkit](https://www.npmjs.com/package/een-api-toolkit)
 - **Live Video:** @een/live-video-web-sdk
 - **Recorded Video:** hls.js
-- **Testing:** Playwright (E2E)
+- **Testing:** Vitest (unit) + Playwright (E2E)
 
 ## een-api-toolkit Functions Used
 
