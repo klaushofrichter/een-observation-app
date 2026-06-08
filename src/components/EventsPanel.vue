@@ -265,7 +265,6 @@ function getEevaReason(event: Event): string | null {
   return reason || null
 }
 
-
 // Check if active event is still in the list
 function isActiveEventInList(): boolean {
   if (!props.activeEventId) return false

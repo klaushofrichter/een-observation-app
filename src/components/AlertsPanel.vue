@@ -144,7 +144,6 @@ function getStartTimestamp(): string {
   return new Date(now - selectedTimeRange.value * 60 * 1000).toISOString()
 }
 
-
 // Get human-readable alert type name (e.g. "een.motionDetectionAlert.v1" -> "Motion Detection")
 function getAlertTypeName(type: string): string {
   return humanizeEenType(type)
