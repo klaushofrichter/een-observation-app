@@ -14,7 +14,7 @@ import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
 import { humanizeEenType } from '@/utils/eenTypeName'
-import { formatTimestamp } from '@/utils/formatTime'
+import { formatClockTime } from '@/utils/formatTime'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
@@ -1052,7 +1052,7 @@ watch(
             {{ getEventTypeName(event.type) }}<span v-if="getEventDuration(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> ({{ getEventDuration(event) }})</span><span v-if="getEventConfidence(event)" :class="isDark ? 'text-gray-400' : 'text-gray-400'"> - {{ getEventConfidence(event) }} confidence<span v-if="getEventConfidenceCount(event)"> ({{ getEventConfidenceCount(event) }})</span></span><span v-if="getEevaReason(event)" :class="isDark ? 'text-gray-400' : 'text-gray-500'"> - {{ getEevaReason(event) }}</span>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-400' : 'text-gray-400'">
-            <span>{{ formatTimestamp(event.startTimestamp) }}</span>
+            <span>{{ formatClockTime(event.startTimestamp) }}</span>
             <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(event.startTimestamp) }}</span>
           </div>
         </div>

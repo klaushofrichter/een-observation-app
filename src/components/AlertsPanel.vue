@@ -16,7 +16,7 @@ interface AlertWithNotification extends Alert {
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { humanizeEenType } from '@/utils/eenTypeName'
-import { formatTimestamp } from '@/utils/formatTime'
+import { formatClockTime } from '@/utils/formatTime'
 
 const props = defineProps<{
   camera: Camera | null
@@ -875,7 +875,7 @@ onUnmounted(() => {
             </template>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-            <span>{{ formatTimestamp(alert.timestamp) }}</span>
+            <span>{{ formatClockTime(alert.timestamp) }}</span>
             <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(alert.timestamp) }}</span>
           </div>
         </div>
