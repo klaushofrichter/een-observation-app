@@ -16,6 +16,7 @@ interface AlertWithNotification extends Alert {
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { humanizeEenType } from '@/utils/eenTypeName'
+import { formatTimestamp } from '@/utils/formatTime'
 
 const props = defineProps<{
   camera: Camera | null
@@ -143,11 +144,6 @@ function getStartTimestamp(): string {
   return new Date(now - selectedTimeRange.value * 60 * 1000).toISOString()
 }
 
-// Format timestamp for display
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
 
 // Get human-readable alert type name (e.g. "een.motionDetectionAlert.v1" -> "Motion Detection")
 function getAlertTypeName(type: string): string {

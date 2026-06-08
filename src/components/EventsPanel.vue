@@ -14,6 +14,7 @@ import { useEventAge } from '@/composables/useEventAge'
 import { useSseNotification } from '@/composables/useSseNotification'
 import { extractBoundingBoxes, type BoundingBox } from '@/composables/useBoundingBoxes'
 import { humanizeEenType } from '@/utils/eenTypeName'
+import { formatTimestamp } from '@/utils/formatTime'
 import BoundingBoxOverlay from './BoundingBoxOverlay.vue'
 
 const props = defineProps<{
@@ -264,11 +265,6 @@ function getEevaReason(event: Event): string | null {
   return reason || null
 }
 
-// Format timestamp for display
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
 
 // Check if active event is still in the list
 function isActiveEventInList(): boolean {

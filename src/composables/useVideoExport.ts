@@ -314,8 +314,6 @@ export function useVideoExport() {
   return {
     // State
     status,
-    jobId,
-    job,
     progress,
     progressPercent,
     errorMessage,

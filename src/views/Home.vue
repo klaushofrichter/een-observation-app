@@ -11,6 +11,7 @@ import EventsPanel from '../components/EventsPanel.vue'
 import AlertsPanel from '../components/AlertsPanel.vue'
 import type { BoundingBox } from '@/composables/useBoundingBoxes'
 import { eventTypesToHashString } from '@/utils/eventTypeHash'
+import { humanizeEenType } from '@/utils/eenTypeName'
 
 // Inject dark mode and mute state
 const isDark = inject<Ref<boolean>>('isDark', ref(false))
@@ -97,12 +98,10 @@ const DURATION_URL_TO_MINUTES: Record<string, number> = {
   '1w': 10080
 }
 
-const DURATION_MINUTES_TO_URL: Record<number, string> = {
-  10: '10m',
-  60: '1h',
-  1440: '24h',
-  10080: '1w'
-}
+// Inverse of DURATION_URL_TO_MINUTES, derived so the two never drift
+const DURATION_MINUTES_TO_URL: Record<number, string> = Object.fromEntries(
+  Object.entries(DURATION_URL_TO_MINUTES).map(([url, minutes]) => [minutes, url])
+)
 
 // Parse duration URL value to minutes (returns null if invalid)
 function parseDurationUrl(value: string | null): number | null {
@@ -332,7 +331,7 @@ function handleAlertClick(alert: { alertId: string; alertObject: Record<string, 
 
   // Extract alert type name
   const alertType = alert.alertObject.alertType as string | undefined
-  const alertTypeName = alertType ? getAlertTypeName(alertType) : 'Alert'
+  const alertTypeName = alertType ? humanizeEenType(alertType) : 'Alert'
 
   // Extract alert timestamp
   const alertTimestamp = alert.alertObject.timestamp as string | null
@@ -344,18 +343,6 @@ function handleAlertClick(alert: { alertId: string; alertObject: Record<string, 
   playbackEventId.value = null // Clear event ID since this is an alert
   playbackBoundingBoxes.value = [] // Alerts don't have bounding boxes
   playbackEventObject.value = alert.alertObject
-}
-
-// Get human-readable alert type name
-function getAlertTypeName(type: string): string {
-  const match = type.match(/een\.(\w+)Alert\.v\d+/)
-  if (match) {
-    return match[1]
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  }
-  return type
 }
 
 // Selected event types state (shared between panels)
