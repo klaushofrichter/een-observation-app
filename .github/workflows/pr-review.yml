@@ -65,6 +65,11 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Allow the Claude GitHub App's bot to trigger reviews (e.g. when it
+          # pushes commits to a PR branch). Without this, the action's default
+          # human-actor gate fails bot-initiated runs. Matching strips the
+          # trailing [bot] suffix, so "claude[bot]" and "claude" are equivalent.
+          allowed_bots: "claude[bot]"
           prompt: |
             Please review this pull request and provide constructive feedback on:
             1. Code quality and best practices
