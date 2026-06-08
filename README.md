@@ -249,7 +249,7 @@ Since browsers require a real user gesture for the Fullscreen API, a confirmatio
 - **API Integration:** [een-api-toolkit](https://www.npmjs.com/package/een-api-toolkit)
 - **Live Video:** @een/live-video-web-sdk
 - **Recorded Video:** hls.js
-- **Testing:** Playwright (E2E)
+- **Testing:** Vitest (unit) + Playwright (E2E)
 
 ## een-api-toolkit Functions Used
 
@@ -314,6 +314,7 @@ This application uses the following functions from [een-api-toolkit](https://git
 | `npm run dev` | Start development server |
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
+| `npm run test:unit` | Run Vitest unit tests |
 | `npm test` | Run Playwright E2E tests |
 | `npm run test:e2e` | Run Playwright E2E tests (alias) |
 | `npm run test:ui` | Run Playwright tests with interactive UI |

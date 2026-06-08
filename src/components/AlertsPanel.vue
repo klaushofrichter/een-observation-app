@@ -16,6 +16,7 @@ interface AlertWithNotification extends Alert {
 import { useImageCache } from '@/composables/useImageCache'
 import { useEventAge } from '@/composables/useEventAge'
 import { humanizeEenType } from '@/utils/eenTypeName'
+import { formatClockTime } from '@/utils/formatTime'
 
 const props = defineProps<{
   camera: Camera | null
@@ -141,12 +142,6 @@ function toggleEventFilter() {
 function getStartTimestamp(): string {
   const now = Date.now()
   return new Date(now - selectedTimeRange.value * 60 * 1000).toISOString()
-}
-
-// Format timestamp for display
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 // Get human-readable alert type name (e.g. "een.motionDetectionAlert.v1" -> "Motion Detection")
@@ -880,7 +875,7 @@ onUnmounted(() => {
             </template>
           </div>
           <div class="text-xs flex justify-between" :class="isDark ? 'text-gray-500' : 'text-gray-400'">
-            <span>{{ formatTimestamp(alert.timestamp) }}</span>
+            <span>{{ formatClockTime(alert.timestamp) }}</span>
             <span :class="isDark ? 'text-gray-300' : 'text-gray-700'">{{ formatAge(alert.timestamp) }}</span>
           </div>
         </div>
