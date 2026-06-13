@@ -65,13 +65,14 @@ function isAuthenticated(): boolean {
   return false
 }
 
-// Navigation guard for protected routes
-router.beforeEach((to, _from, next) => {
+// Navigation guard for protected routes.
+// Uses vue-router's return-value style (return a location to redirect, or
+// undefined to allow) — the next() callback is deprecated as of vue-router 5.
+router.beforeEach((to) => {
   // IMPORTANT: Check for OAuth callback FIRST, before auth check
   // EEN IDP redirects to root path with code and state params
   if (to.path === '/' && to.query.code && to.query.state) {
-    next({ name: 'callback', query: to.query })
-    return
+    return { name: 'callback', query: to.query }
   }
 
   // Handle URL parameters: persist them to sessionStorage so they survive the
@@ -81,10 +82,10 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated()) {
-    next({ name: 'login' })
-  } else {
-    next()
+    return { name: 'login' }
   }
+
+  // Otherwise allow navigation (implicit return undefined)
 })
 
 export default router
