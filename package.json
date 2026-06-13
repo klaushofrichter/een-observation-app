@@ -16,7 +16,7 @@
   "dependencies": {
     "@een/live-video-web-sdk": "^1.10.2",
     "@vitejs/plugin-vue": "^6.0.3",
-    "een-api-toolkit": "^0.3.103",
+    "een-api-toolkit": "^0.3.110",
     "hls.js": "^1.6.15",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
